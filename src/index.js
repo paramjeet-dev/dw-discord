@@ -1,6 +1,7 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { connectDatabase } = require('./database/mongoose');
+const path = require('node:path');
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
@@ -8,18 +9,21 @@ const client = new Client({
 
 client.commands = new Collection();
 
-async function loadCommands() {
+async function loadCommands(dirPath = path.join(__dirname, 'commands')) {
   const { default: fs } = await import('node:fs/promises');
-  const path = require('node:path');
-  const commandsPath = path.join(__dirname, 'commands');
-  const commandFiles = (await fs.readdir(commandsPath)).filter(file => file.endsWith('.js'));
+  const entries = await fs.readdir(dirPath, { withFileTypes: true });
 
-  for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    const command = require(filePath);
-    if ('data' in command && 'execute' in command) {
-      client.commands.set(command.data.name, command);
-      console.log(`Loaded command: ${command.data.name}`);
+  for (const entry of entries) {
+    const entryPath = path.join(dirPath, entry.name);
+
+    if (entry.isDirectory()) {
+      await loadCommands(entryPath);
+    } else if (entry.isFile() && entry.name.endsWith('.js')) {
+      const command = require(entryPath);
+      if ('data' in command && 'execute' in command) {
+        client.commands.set(command.data.name, command);
+        console.log(`Loaded command: ${command.data.name}`);
+      }
     }
   }
 }
