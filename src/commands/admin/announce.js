@@ -1,4 +1,5 @@
-const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
+const { buildServerEmbed } = require('../../utils/embedHelper');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -25,10 +26,7 @@ module.exports = {
     }
 
     if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-      const embed = new EmbedBuilder()
-        .setColor(0xED4245)
-        .setDescription('You need administrator permissions to use this command.');
-
+      const embed = buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to use this command.');
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
@@ -37,16 +35,13 @@ module.exports = {
 
     if (useEmbed) {
       await interaction.channel.send({
-        embeds: [new EmbedBuilder().setColor(0x5865F2).setDescription(message)]
+        embeds: [buildServerEmbed(interaction, 0x5865F2, message)]
       });
     } else {
       await interaction.channel.send(message);
     }
 
-    const successEmbed = new EmbedBuilder()
-      .setColor(0x57F287)
-      .setDescription('Announcement sent successfully.');
-
+    const successEmbed = buildServerEmbed(interaction, 0x57F287, 'Announcement sent successfully.');
     await interaction.reply({ embeds: [successEmbed], ephemeral: true });
   }
 };
