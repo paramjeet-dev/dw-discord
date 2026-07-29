@@ -1,0 +1,24 @@
+{
+  "name": "dw-discord-bot",
+  "version": "1.0.0",
+  "description": "Discord bot starter with slash commands and MongoDB",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "deploy:commands": "node src/deploy-commands.js",
+    "check": "node --check src/index.js && node --check src/deploy-commands.js && node --check src/events/ready.js && node --check src/events/interactionCreate.js && node --check src/database/mongoose.js && node --check src/commands/ping.js"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "slash-commands",
+    "mongodb"
+  ],
+  "author": "Sigma Development",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.2",
+    "dotenv": "^16.4.1",
+    "mongoose": "^8.9.0"
+  }
+}
