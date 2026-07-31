@@ -3,6 +3,8 @@ const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const { connectDatabase } = require('./database/mongoose');
 const path = require('node:path');
 
+const giveawayCommand = require('./commands/admin/giveaway');
+
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
 });
@@ -49,5 +51,6 @@ async function loadEvents() {
   await connectDatabase();
   await loadCommands();
   await loadEvents();
+  await giveawayCommand.initialize(client);
   client.login(process.env.DISCORD_TOKEN);
 })();
