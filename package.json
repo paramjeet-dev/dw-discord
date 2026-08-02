@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node src/index.js",
     "deploy:commands": "node src/deploy-commands.js",
-    "check": "node --check src/index.js && node --check src/deploy-commands.js && node --check src/events/ready.js && node --check src/events/interactionCreate.js && node --check src/database/mongoose.js && node --check src/commands/ping.js && node --check src/commands/admin/announce.js && node --check src/commands/admin/completed.js && node --check src/commands/admin/postimage.js && node --check src/commands/admin/giveaway.js"
+    "check": "node --check src/index.js && node --check src/deploy-commands.js && node --check src/events/ready.js && node --check src/events/interactionCreate.js && node --check src/database/mongoose.js && node --check src/commands/ping.js && node --check src/commands/admin/announce.js && node --check src/commands/admin/completed.js && node --check src/commands/admin/upload.js && node --check src/commands/admin/giveaway.js && node --check src/commands/admin/ticket.js"
   },
   "keywords": [
     "discord",
