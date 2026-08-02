@@ -36,14 +36,47 @@ function buildTicketSelect(config) {
   };
 }
 
-function buildTicketActionRow(ticketChannelId) {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder().setCustomId(`ticket:users:${ticketChannelId}`).setLabel('Users').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`ticket:roles:${ticketChannelId}`).setLabel('Roles').setStyle(ButtonStyle.Primary),
-    new ButtonBuilder().setCustomId(`ticket:close:${ticketChannelId}`).setLabel('Close').setStyle(ButtonStyle.Success),
-    new ButtonBuilder().setCustomId(`ticket:delete:${ticketChannelId}`).setLabel('Delete').setStyle(ButtonStyle.Danger),
-    new ButtonBuilder().setCustomId(`ticket:transcript:${ticketChannelId}`).setLabel('Transcript').setStyle(ButtonStyle.Secondary)
-  );
+function buildTicketActionRows(ticketChannelId) {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`ticket:users:${ticketChannelId}`).setLabel('Users').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`ticket:roles:${ticketChannelId}`).setLabel('Roles').setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId(`ticket:rename:${ticketChannelId}`).setLabel('Rename').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId(`ticket:reopen:${ticketChannelId}`).setLabel('Reopen').setStyle(ButtonStyle.Success)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId(`ticket:close:${ticketChannelId}`).setLabel('Close').setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId(`ticket:delete:${ticketChannelId}`).setLabel('Delete').setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId(`ticket:transcript:${ticketChannelId}`).setLabel('Transcript').setStyle(ButtonStyle.Secondary)
+    )
+  ];
+}
+
+function buildRenameModal(channelId) {
+  const modal = new ModalBuilder()
+    .setCustomId(`ticket:renameModal:${channelId}`)
+    .setTitle('Rename ticket');
+
+  const nameInput = new TextInputBuilder()
+    .setCustomId('newName')
+    .setLabel('New ticket name')
+    .setStyle(1)
+    .setRequired(true)
+    .setPlaceholder('support-help');
+
+  modal.addComponents(new ActionRowBuilder().addComponents(nameInput));
+  return modal;
+}
+
+function sanitizeTicketName(value) {
+  const normalized = String(value || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return normalized ? `ticket-${normalized}`.slice(0, 100) : 'ticket';
 }
 
 async function createTicketChannel(interaction, config, optionValue) {
@@ -56,6 +89,13 @@ async function createTicketChannel(interaction, config, optionValue) {
   const category = await guild.channels.fetch(config.ticketCategoryId).catch(() => null);
   if (!category || category.type !== ChannelType.GuildCategory) {
     return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket category is not available.')], ephemeral: true });
+  }
+
+  const existingOpenTicket = await Ticket.findOne({ guildId: guild.id, openerId: interaction.user.id, status: 'open' }).lean();
+  if (existingOpenTicket) {
+    const existingChannel = existingOpenTicket.channelId ? await guild.channels.fetch(existingOpenTicket.channelId).catch(() => null) : null;
+    const location = existingChannel ? ` ${existingChannel}` : '';
+    return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, `You already have an open ticket${location}. Please close or delete it before opening a new one.`)], ephemeral: true });
   }
 
   const channelName = `ticket-${option.value}-${Date.now()}`.slice(0, 100);
@@ -91,7 +131,7 @@ async function createTicketChannel(interaction, config, optionValue) {
   await ticketChannel.send({
     content: `${interaction.user}, ${config.openingMessage}`,
     embeds: [ticketEmbed],
-    components: [buildTicketActionRow(ticketChannel.id)]
+    components: buildTicketActionRows(ticketChannel.id)
   });
 
   return interaction.reply({ content: `Ticket opened: ${ticketChannel}`, ephemeral: true });
@@ -185,6 +225,35 @@ async function closeTicket(interaction, channelId) {
 
   await Ticket.updateOne({ channelId }, { status: 'closed', closedAt: new Date() });
   return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Ticket closed successfully.')], ephemeral: true });
+}
+
+async function reopenTicket(interaction, channelId) {
+  const ticket = await Ticket.findOne({ channelId }).lean();
+  if (!ticket) return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket not found.')], ephemeral: true });
+  if (ticket.openerId !== interaction.user.id && !isAdmin(interaction)) {
+    return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Only the ticket creator or an admin can reopen this ticket.')], ephemeral: true });
+  }
+  if (ticket.status === 'open') {
+    return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, 'This ticket is already open.')], ephemeral: true });
+  }
+
+  const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+  if (channel) {
+    await channel.send({ content: `Ticket reopened by ${interaction.user}.` });
+  }
+
+  await Ticket.updateOne({ channelId }, { status: 'open', closedAt: null });
+  return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Ticket reopened successfully.')], ephemeral: true });
+}
+
+async function renameTicket(interaction, channelId) {
+  const ticket = await Ticket.findOne({ channelId }).lean();
+  if (!ticket) return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket not found.')], ephemeral: true });
+  if (ticket.openerId !== interaction.user.id && !isAdmin(interaction)) {
+    return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Only the ticket creator or an admin can rename this ticket.')], ephemeral: true });
+  }
+
+  await interaction.showModal(buildRenameModal(channelId));
 }
 
 async function deleteTicket(interaction, channelId) {
@@ -333,6 +402,16 @@ module.exports = {
         return;
       }
 
+      if (interaction.customId.startsWith('ticket:rename:')) {
+        const [, , channelId] = interaction.customId.split(':');
+        return renameTicket(interaction, channelId);
+      }
+
+      if (interaction.customId.startsWith('ticket:reopen:')) {
+        const [, , channelId] = interaction.customId.split(':');
+        return reopenTicket(interaction, channelId);
+      }
+
       if (interaction.customId.startsWith('ticket:close:')) {
         const [, , channelId] = interaction.customId.split(':');
         const ticket = await Ticket.findOne({ channelId }).lean();
@@ -462,10 +541,27 @@ module.exports = {
       }
 
       if (interaction.customId.startsWith('ticket:userModal:') || interaction.customId.startsWith('ticket:roleModal:')) {
-        const [, kind, action, channelId, messageId] = interaction.customId.split(':');
+        const [, kind, action, channelId] = interaction.customId.split(':');
         const targetKind = kind === 'user' ? 'user' : 'role';
         await handleTargetChange(interaction, channelId, action, targetKind);
         return;
+      }
+
+      if (interaction.customId.startsWith('ticket:renameModal:')) {
+        const [, , channelId] = interaction.customId.split(':');
+        const newName = sanitizeTicketName(interaction.fields.getTextInputValue('newName'));
+        const channel = await interaction.guild.channels.fetch(channelId).catch(() => null);
+        if (!channel || !channel.isTextBased()) {
+          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'The ticket channel is no longer available.')], ephemeral: true });
+        }
+
+        try {
+          await channel.setName(newName);
+          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Ticket renamed successfully.')], ephemeral: true });
+        } catch (error) {
+          console.error(error);
+          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'I could not rename this ticket right now.')], ephemeral: true });
+        }
       }
     }
 
