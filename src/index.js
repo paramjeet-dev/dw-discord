@@ -6,7 +6,12 @@ const path = require('node:path');
 const giveawayCommand = require('./commands/admin/giveaway');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.GuildMessageReactions
+  ],
+  partials: ['MESSAGE', 'CHANNEL', 'REACTION']
 });
 
 client.commands = new Collection();

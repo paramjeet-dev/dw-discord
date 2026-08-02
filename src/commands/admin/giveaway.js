@@ -1,15 +1,12 @@
 const { SlashCommandBuilder, PermissionsBitField, EmbedBuilder } = require('discord.js');
-const fs = require('node:fs/promises');
-const path = require('node:path');
 const { buildServerEmbed } = require('../../utils/embedHelper');
+const Giveaway = require('../../models/giveaway');
 
 const ALLOWED_ROLE_ID = '123';
 const REACTION_EMOJI = '🎉';
-const STORAGE_PATH = path.join(__dirname, '..', '..', 'data', 'giveaways.json');
 
 let clientInstance = null;
 let giveawayTimers = new Map();
-let giveawayStore = [];
 
 function isAllowed(interaction) {
   if (interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
@@ -58,29 +55,6 @@ function formatTimestamp(timestamp) {
     dateStyle: 'medium',
     timeStyle: 'short'
   });
-}
-
-async function ensureStorageFile() {
-  await fs.mkdir(path.dirname(STORAGE_PATH), { recursive: true });
-  try {
-    await fs.access(STORAGE_PATH);
-  } catch {
-    await fs.writeFile(STORAGE_PATH, '[]', 'utf8');
-  }
-}
-
-async function loadGiveaways() {
-  await ensureStorageFile();
-  const raw = await fs.readFile(STORAGE_PATH, 'utf8');
-  const parsed = JSON.parse(raw);
-  giveawayStore = Array.isArray(parsed) ? parsed : [];
-  return giveawayStore;
-}
-
-async function saveGiveaways(items) {
-  giveawayStore = items;
-  await ensureStorageFile();
-  await fs.writeFile(STORAGE_PATH, JSON.stringify(items, null, 2), 'utf8');
 }
 
 function buildGiveawayEmbed(giveaway) {
@@ -167,9 +141,8 @@ async function scheduleGiveawayEnd(giveaway, client) {
 }
 
 async function finalizeGiveaway(giveawayId, client) {
-  const giveaways = await loadGiveaways();
-  const giveaway = giveaways.find((item) => item.id === giveawayId);
-  if (!giveaway || giveaway.status !== 'active') return;
+  const giveaway = await Giveaway.findOne({ id: giveawayId, status: 'active' });
+  if (!giveaway) return;
 
   const message = await getGiveawayMessage(giveaway, client);
   const participantIds = await getParticipantIds(message);
@@ -178,12 +151,12 @@ async function finalizeGiveaway(giveawayId, client) {
   const winnersList = shuffled.slice(0, Math.min(giveaway.winners, shuffled.length));
 
   giveaway.status = 'ended';
-  giveaway.endedAt = Date.now();
+  giveaway.endedAt = new Date();
   giveaway.winnersList = winnersList;
   giveaway.participantCount = participantIds.length;
 
-  await saveGiveaways(giveaways);
-  await refreshGiveawayMessage(giveaway, client);
+  await giveaway.save();
+  await refreshGiveawayMessage(giveaway.toObject(), client);
 
   clearTimeout(giveawayTimers.get(giveaway.id));
   giveawayTimers.delete(giveaway.id);
@@ -203,12 +176,11 @@ async function finalizeGiveaway(giveawayId, client) {
 }
 
 async function getGuildGiveaways(guildId) {
-  const giveaways = await loadGiveaways();
-  return giveaways.filter((giveaway) => giveaway.guildId === guildId);
+  return Giveaway.find({ guildId }).lean();
 }
 
-async function ensureGiveawayExists(giveaways, giveawayId, guildId) {
-  const giveaway = giveaways.find((item) => item.id === giveawayId && item.guildId === guildId);
+async function ensureGiveawayExists(giveawayId, guildId) {
+  const giveaway = await Giveaway.findOne({ id: giveawayId, guildId }).lean();
   if (!giveaway) {
     throw new Error('Giveaway not found.');
   }
@@ -346,9 +318,7 @@ module.exports = {
         giveaway.messageId = message.id;
         giveaway.participantCount = 0;
 
-        const giveaways = await loadGiveaways();
-        giveaways.push(giveaway);
-        await saveGiveaways(giveaways);
+        await Giveaway.create(giveaway);
         await scheduleGiveawayEnd(giveaway, interaction.client);
 
         const successEmbed = buildServerEmbed(interaction, 0x57F287, `Giveaway created successfully. ID: ${giveaway.id}`);
@@ -384,8 +354,11 @@ module.exports = {
       const prize = interaction.options.getString('prize');
       const winners = interaction.options.getInteger('winners');
       const duration = interaction.options.getString('duration');
-      const giveaways = await loadGiveaways();
-      const giveaway = await ensureGiveawayExists(giveaways, giveawayId, interaction.guild.id);
+      const giveaway = await Giveaway.findOne({ id: giveawayId, guildId: interaction.guild.id });
+
+      if (!giveaway) {
+        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+      }
 
       if (giveaway.status === 'ended') {
         return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Completed giveaways cannot be edited.')], ephemeral: true });
@@ -402,24 +375,25 @@ module.exports = {
         giveaway.endAt = Date.now() + durationMs;
       }
 
-      await saveGiveaways(giveaways);
-      await refreshGiveawayMessage(giveaway, interaction.client);
-      await scheduleGiveawayEnd(giveaway, interaction.client);
+      await giveaway.save();
+      await refreshGiveawayMessage(giveaway.toObject(), interaction.client);
+      await scheduleGiveawayEnd(giveaway.toObject(), interaction.client);
 
       return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Giveaway updated successfully.')], ephemeral: true });
     }
 
     if (subcommand === 'delete') {
       const giveawayId = interaction.options.getString('giveaway_id', true);
-      const giveaways = await loadGiveaways();
-      const giveaway = await ensureGiveawayExists(giveaways, giveawayId, interaction.guild.id);
-      const filtered = giveaways.filter((item) => item.id !== giveawayId || item.guildId !== interaction.guild.id);
+      const giveaway = await Giveaway.findOneAndDelete({ id: giveawayId, guildId: interaction.guild.id });
+
+      if (!giveaway) {
+        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+      }
 
       clearTimeout(giveawayTimers.get(giveaway.id));
       giveawayTimers.delete(giveaway.id);
-      await saveGiveaways(filtered);
 
-      const message = await getGiveawayMessage(giveaway, interaction.client);
+      const message = await getGiveawayMessage(giveaway.toObject ? giveaway.toObject() : giveaway, interaction.client);
       if (message) {
         await message.delete().catch(() => null);
       }
@@ -429,10 +403,13 @@ module.exports = {
 
     if (subcommand === 'info') {
       const giveawayId = interaction.options.getString('giveaway_id', true);
-      const giveaways = await loadGiveaways();
-      const giveaway = await ensureGiveawayExists(giveaways, giveawayId, interaction.guild.id);
-      const message = await getGiveawayMessage(giveaway, interaction.client);
-      const participantCount = message ? await getParticipantIds(message).then((participants) => participants.length) : giveaway.participantCount || 0;
+      const giveaway = await Giveaway.findOne({ id: giveawayId, guildId: interaction.guild.id }).lean();
+
+      if (!giveaway) {
+        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+      }
+
+      const participantCount = giveaway.participantCount || 0;
       const infoEmbed = new EmbedBuilder()
         .setColor(giveaway.status === 'ended' ? 0xED4245 : 0x5865F2)
         .setTitle(`Giveaway: ${giveaway.prize}`)
@@ -450,8 +427,11 @@ module.exports = {
 
     if (subcommand === 'reroll') {
       const giveawayId = interaction.options.getString('giveaway_id', true);
-      const giveaways = await loadGiveaways();
-      const giveaway = await ensureGiveawayExists(giveaways, giveawayId, interaction.guild.id);
+      const giveaway = await Giveaway.findOne({ id: giveawayId, guildId: interaction.guild.id });
+      if (!giveaway) {
+        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+      }
+
       const message = await getGiveawayMessage(giveaway, interaction.client);
       const participantIds = await getParticipantIds(message);
 
@@ -462,16 +442,19 @@ module.exports = {
       const shuffled = [...participantIds].sort(() => Math.random() - 0.5);
       const winnersList = shuffled.slice(0, Math.min(giveaway.winners, shuffled.length));
       giveaway.winnersList = winnersList;
-      await saveGiveaways(giveaways);
-      await refreshGiveawayMessage(giveaway, interaction.client);
+      await giveaway.save();
+      await refreshGiveawayMessage(giveaway.toObject(), interaction.client);
 
       return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, `Reroll complete. Winners: ${winnersList.map((id) => `<@${id}>`).join(', ')}`)], ephemeral: true });
     }
 
     if (subcommand === 'end') {
       const giveawayId = interaction.options.getString('giveaway_id', true);
-      const giveaways = await loadGiveaways();
-      const giveaway = await ensureGiveawayExists(giveaways, giveawayId, interaction.guild.id);
+      const giveaway = await Giveaway.findOne({ id: giveawayId, guildId: interaction.guild.id });
+
+      if (!giveaway) {
+        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+      }
 
       if (giveaway.status === 'ended') {
         return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'This giveaway is already ended.')], ephemeral: true });
@@ -486,12 +469,10 @@ module.exports = {
 
   async initialize(client) {
     clientInstance = client;
-    await loadGiveaways();
 
-    for (const giveaway of giveawayStore) {
-      if (giveaway.status === 'active') {
-        await scheduleGiveawayEnd(giveaway, client);
-      }
+    const activeGiveaways = await Giveaway.find({ status: 'active' }).lean();
+    for (const giveaway of activeGiveaways) {
+      await scheduleGiveawayEnd(giveaway, client);
     }
   }
 };
