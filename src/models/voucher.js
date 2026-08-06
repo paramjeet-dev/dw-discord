@@ -33,6 +33,21 @@ const voucherSchema = new mongoose.Schema({
   usedAt: {
     type: Date,
     default: null
+  },
+  uses: {
+    type: [
+      {
+        userId: {
+          type: String,
+          required: true
+        },
+        usedAt: {
+          type: Date,
+          required: true
+        }
+      }
+    ],
+    default: []
   }
 });
 

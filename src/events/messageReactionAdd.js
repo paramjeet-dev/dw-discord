@@ -1,5 +1,5 @@
 const { EmbedBuilder } = require('discord.js');
-const Giveaway = require('../../models/giveaway');
+const Giveaway = require('../models/giveaway');
 
 const REACTION_EMOJI = '🎉';
 

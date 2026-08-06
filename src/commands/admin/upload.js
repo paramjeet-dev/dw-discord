@@ -1,7 +1,7 @@
 const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const { buildServerEmbed } = require('../../utils/embedHelper');
 
-const TARGET_CHANNEL_ID = '123';
+const TARGET_CHANNEL_ID = '1149238022181748806';
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -45,7 +45,7 @@ module.exports = {
     }
 
     try {
-      const targetChannel = await interaction.guild.channels.fetch(TARGET_CHANNEL_ID);
+      const targetChannel = interaction.guild.channels.cache.get(TARGET_CHANNEL_ID) ?? await interaction.guild.channels.fetch(TARGET_CHANNEL_ID).catch(() => null);
 
       if (!targetChannel || !targetChannel.isTextBased() || targetChannel.isThread()) {
         const embed = buildServerEmbed(interaction, 0xED4245, 'The target channel is not available or is not a text channel.');

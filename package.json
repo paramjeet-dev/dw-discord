@@ -17,6 +17,7 @@
   "author": "Sigma Development",
   "license": "MIT",
   "dependencies": {
+    "canvas": "^3.2.3",
     "discord.js": "^14.16.2",
     "dotenv": "^16.4.1",
     "mongoose": "^8.9.0"

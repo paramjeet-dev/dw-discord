@@ -1,15 +1,16 @@
-const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField, ChannelType } = require('discord.js');
 const { buildServerEmbed } = require('../../utils/embedHelper');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('completed')
     .setDescription('Move the current channel into a chosen category.')
-    .addStringOption((option) =>
+    .addChannelOption((option) =>
       option
         .setName('category')
-        .setDescription('The category name to move this channel into')
+        .setDescription('The category to move this channel into')
         .setRequired(true)
+        .addChannelTypes(ChannelType.GuildCategory)
     ),
   async execute(interaction) {
     if (!interaction.inGuild()) {
@@ -24,13 +25,10 @@ module.exports = {
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    const categoryName = interaction.options.getString('category', true);
-    const category = interaction.guild.channels.cache.find(
-      (channel) => channel.type === 4 && channel.name.toLowerCase() === categoryName.toLowerCase()
-    );
+    const category = interaction.options.getChannel('category', true);
 
-    if (!category) {
-      const embed = buildServerEmbed(interaction, 0xED4245, `Category "${categoryName}" was not found.`);
+    if (!category || category.type !== ChannelType.GuildCategory) {
+      const embed = buildServerEmbed(interaction, 0xED4245, 'The selected category is not valid.');
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
@@ -42,7 +40,7 @@ module.exports = {
     try {
       await interaction.channel.setParent(category.id);
       const successEmbed = buildServerEmbed(interaction, 0x57F287, `Moved this channel to **${category.name}**.`);
-      return interaction.reply({ embeds: [successEmbed], ephemeral: true });
+      return interaction.reply({ embeds: [successEmbed] });
     } catch (error) {
       const errorEmbed = buildServerEmbed(interaction, 0xED4245, 'I could not move this channel. Please check the permissions and try again.');
       return interaction.reply({ embeds: [errorEmbed], ephemeral: true });
