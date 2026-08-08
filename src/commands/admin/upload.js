@@ -15,8 +15,9 @@ module.exports = {
     ),
 
   async execute(interaction) {
+    await interaction.deferReply();
     if (!interaction.inGuild()) {
-      return interaction.reply({
+      return interaction.editReply({
         content: 'This command can only be used inside a server.',
         ephemeral: true
       });
@@ -24,24 +25,24 @@ module.exports = {
 
     if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
       const embed = buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to use this command.');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.editReply({ embeds: [embed], ephemeral: true });
     }
 
     const attachment = interaction.options.getAttachment('image', true);
 
     if (!attachment) {
       const embed = buildServerEmbed(interaction, 0xED4245, 'Please upload an image to post.');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.editReply({ embeds: [embed], ephemeral: true });
     }
 
     if (!attachment.contentType?.startsWith('image/')) {
       const embed = buildServerEmbed(interaction, 0xED4245, 'The uploaded file must be an image.');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.editReply({ embeds: [embed], ephemeral: true });
     }
 
     if (attachment.size > 8 * 1024 * 1024) {
       const embed = buildServerEmbed(interaction, 0xED4245, 'The image is too large. Please upload a file smaller than 8 MB.');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.editReply({ embeds: [embed], ephemeral: true });
     }
 
     try {
@@ -49,7 +50,7 @@ module.exports = {
 
       if (!targetChannel || !targetChannel.isTextBased() || targetChannel.isThread()) {
         const embed = buildServerEmbed(interaction, 0xED4245, 'The target channel is not available or is not a text channel.');
-        return interaction.reply({ embeds: [embed], ephemeral: true });
+        return interaction.editReply({ embeds: [embed], ephemeral: true });
       }
 
       await targetChannel.send({
@@ -57,11 +58,11 @@ module.exports = {
       });
 
       const successEmbed = buildServerEmbed(interaction, 0x57F287, 'Image posted successfully.');
-      return interaction.reply({ embeds: [successEmbed], ephemeral: true });
+      return interaction.followUp({ embeds: [successEmbed], ephemeral: true });
     } catch (error) {
       console.error(error);
       const errorEmbed = buildServerEmbed(interaction, 0xED4245, 'I could not post the image. Please check the target channel and bot permissions.');
-      return interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+      return interaction.editReply({ embeds: [errorEmbed], ephemeral: true });
     }
   }
 };
