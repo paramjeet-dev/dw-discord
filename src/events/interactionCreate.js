@@ -566,6 +566,31 @@ module.exports = {
     }
 
     if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === 'completedCategorySelect') {
+        if (!interaction.inGuild()) {
+          return interaction.update({ content: 'This command can only be used inside a server.', components: [] });
+        }
+
+        const categoryId = interaction.values[0];
+        const category = interaction.guild.channels.cache.get(categoryId) ?? await interaction.guild.channels.fetch(categoryId).catch(() => null);
+
+        if (!category || category.type !== ChannelType.GuildCategory) {
+          return interaction.update({ content: 'The selected category is not valid.', components: [] });
+        }
+
+        if (!interaction.channel || !interaction.channel.isTextBased() || interaction.channel.isThread()) {
+          return interaction.update({ content: 'This command must be run from a text channel.', components: [] });
+        }
+
+        try {
+          await interaction.channel.setParent(category.id);
+          return interaction.update({ content: `Moved this channel to **${category.name}**.`, components: [] });
+        } catch (error) {
+          console.error(error);
+          return interaction.update({ content: 'I could not move this channel. Please check the permissions and try again.', components: [] });
+        }
+      }
+
       if (interaction.customId !== 'ticketOpenSelect') return;
 
       const config = await TicketConfig.findOne({ guildId: interaction.guild.id }).lean();

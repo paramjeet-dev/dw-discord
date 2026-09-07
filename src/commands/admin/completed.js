@@ -1,17 +1,11 @@
-const { SlashCommandBuilder, PermissionsBitField, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField, ChannelType, ActionRowBuilder, StringSelectMenuBuilder } = require('discord.js');
 const { buildServerEmbed } = require('../../utils/embedHelper');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('completed')
-    .setDescription('Move the current channel into a chosen category.')
-    .addChannelOption((option) =>
-      option
-        .setName('category')
-        .setDescription('The category to move this channel into')
-        .setRequired(true)
-        .addChannelTypes(ChannelType.GuildCategory)
-    ),
+    .setDescription('Move the current channel into a chosen category.'),
+
   async execute(interaction) {
     if (!interaction.inGuild()) {
       return interaction.reply({
@@ -25,25 +19,37 @@ module.exports = {
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    const category = interaction.options.getChannel('category', true);
-
-    if (!category || category.type !== ChannelType.GuildCategory) {
-      const embed = buildServerEmbed(interaction, 0xED4245, 'The selected category is not valid.');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
-    }
-
-    if (!interaction.channel || interaction.channel.type !== 0) {
+    if (!interaction.channel || !interaction.channel.isTextBased() || interaction.channel.isThread()) {
       const embed = buildServerEmbed(interaction, 0xED4245, 'This command must be run from a text channel.');
       return interaction.reply({ embeds: [embed], ephemeral: true });
     }
 
-    try {
-      await interaction.channel.setParent(category.id);
-      const successEmbed = buildServerEmbed(interaction, 0x57F287, `Moved this channel to **${category.name}**.`);
-      return interaction.reply({ embeds: [successEmbed] });
-    } catch (error) {
-      const errorEmbed = buildServerEmbed(interaction, 0xED4245, 'I could not move this channel. Please check the permissions and try again.');
-      return interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+    const categoryOptions = interaction.guild.channels.cache
+      .filter((channel) => channel.type === ChannelType.GuildCategory)
+      .sort((a, b) => a.position - b.position)
+      .map((channel) => ({
+        label: channel.name,
+        value: channel.id
+      }))
+      .slice(0, 25);
+
+    if (categoryOptions.length === 0) {
+      const embed = buildServerEmbed(interaction, 0xED4245, 'No categories are available in this server.');
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
+
+    const row = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId('completedCategorySelect')
+        .setPlaceholder('Choose a category')
+        .addOptions(categoryOptions)
+    );
+
+    return interaction.reply({
+      content: 'Select the category you want to move this channel into.',
+      components: [row],
+      ephemeral: false,
+      fetchReply: true
+    });
   }
 };
