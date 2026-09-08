@@ -9,11 +9,24 @@ function isAdmin(interaction) {
   return interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator);
 }
 
-function buildTicketEmbed(config) {
-  return new EmbedBuilder()
+function buildTicketEmbed(config, interaction) {
+  const embed = new EmbedBuilder()
     .setColor(0x5865F2)
     .setTitle('🎫 Open a ticket')
     .setDescription(config.panelMessage);
+
+  if (interaction) {
+    const locale = interaction.locale || (interaction.user && interaction.user.locale) || 'en-US';
+    const timestamp = new Date().toLocaleString(locale, {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+    const footerIcon = interaction.guild.iconURL({ extension: 'png', size: 64 }) || interaction.client.user.displayAvatarURL({ extension: 'png', size: 64 });
+    embed.setFooter({ text: `${interaction.guild.name} • ${timestamp}`, iconURL: footerIcon });
+  }
+
+  return embed;
 }
 
 function buildTicketSelect(config) {
@@ -531,7 +544,7 @@ module.exports = {
           { upsert: true, new: true }
         );
 
-        const panelEmbed = buildTicketEmbed(config);
+        const panelEmbed = buildTicketEmbed(config, interaction);
         const selectRow = buildTicketSelect(config);
         const panelMessageSent = await panelChannel.send({ embeds: [panelEmbed], components: [selectRow] });
         config.panelMessageId = panelMessageSent.id;

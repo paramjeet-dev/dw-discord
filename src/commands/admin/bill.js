@@ -115,33 +115,24 @@ module.exports = {
         canvas.height
       );
 
-      // Text settings
-      ctx.font = '30px Comic Sans MS';
+      // Text settings and fonts (use system sans for a cleaner look)
       ctx.fillStyle = 'white';
       ctx.textAlign = 'center';
 
-      // Grand total
-      ctx.fillText(
-        `${currencySymbol} ${grandTotal}`,
-        227,
-        641
-      );
+      // Grand total (larger)
+      ctx.font = '40px "Segoe UI"';
+      ctx.fillText(`${currencySymbol} ${grandTotal}`, 227, 641);
 
       // Discount
-      ctx.fillText(
-        discount,
-        262,
-        518
-      );
+      ctx.font = '28px "Segoe UI"';
+      ctx.fillText(discount, 262, 518);
 
       // Price
-      ctx.fillText(
-        `${currencySymbol} ${price}`,
-        235,
-        395
-      );
+      ctx.font = '28px "Segoe UI"';
+      ctx.fillText(`${currencySymbol} ${price}`, 235, 395);
 
       // Order
+      ctx.font = '24px "Segoe UI"';
       if (order.length < 10) {
         ctx.fillText(order, 252, 269);
       } else if (order.length >= 10 && order.length < 15) {
@@ -152,30 +143,33 @@ module.exports = {
 
       // Customer name
       if (customerName !== 'Anonymous') {
+        ctx.font = '26px "Segoe UI"';
         if (customerName.length < 6) {
           ctx.fillText(customerName, 280, 148);
-        } else if (
-          customerName.length >= 6 &&
-          customerName.length < 15
-        ) {
+        } else if (customerName.length >= 6 && customerName.length < 15) {
           ctx.fillText(customerName, 255, 190);
         } else {
           ctx.fillText(customerName, 185, 190);
         }
       }
 
-      // Create attachment
-      const attachment = new AttachmentBuilder(
-        canvas.toBuffer('image/png'),
-        {
-          name: 'bill.png',
-        }
-      );
+      // Create buffer and attachments
+      const buffer = canvas.toBuffer('image/png');
+      const attachment = new AttachmentBuilder(buffer, { name: 'bill.png' });
+      const dmAttachment = new AttachmentBuilder(buffer, { name: 'bill.png' });
 
-      // Send bill
-      await interaction.editReply({
-        files: [attachment],
-      });
+      // DM the chosen customer with the bill and a thank you message
+      try {
+        await customer.send({
+          content: 'Thank you for choosing Design Wonderland',
+          files: [dmAttachment]
+        }).catch(() => null);
+      } catch (err) {
+        // ignore DM failures
+      }
+
+      // Send bill in the channel
+      await interaction.editReply({ files: [attachment] });
 
     } catch (error) {
       console.error('Error executing /bill command:', error);
