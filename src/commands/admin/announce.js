@@ -18,16 +18,14 @@ module.exports = {
         .setRequired(false)
     ),
   async execute(interaction) {
+    await interaction.deferReply().catch(() => null);
     if (!interaction.inGuild()) {
-      return interaction.reply({
-        content: 'This command can only be used inside a server.',
-        ephemeral: true
-      });
+      return interaction.followUp({ content: 'This command can only be used inside a server.', ephemeral: true });
     }
 
     if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
       const embed = buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to use this command.');
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.followUp({ embeds: [embed], ephemeral: true });
     }
 
     const message = interaction.options.getString('message', true);
@@ -42,6 +40,6 @@ module.exports = {
     }
 
     const successEmbed = buildServerEmbed(interaction, 0x57F287, 'Announcement sent successfully.');
-    await interaction.reply({ embeds: [successEmbed], ephemeral: true });
+    await interaction.followUp({ embeds: [successEmbed], ephemeral: true });
   }
 };

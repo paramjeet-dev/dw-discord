@@ -189,7 +189,7 @@ async function ensureGiveawayExists(giveawayId, guildId) {
 }
 
 function buildPermissionReply(interaction) {
-  return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions or the configured giveaway role to use this command.')], ephemeral: true });
+  return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions or the configured giveaway role to use this command.')], ephemeral: true });
 }
 
 module.exports = {
@@ -269,12 +269,13 @@ module.exports = {
     ),
 
   async execute(interaction) {
+    await interaction.deferReply().catch(() => null);
     if (!interaction.inGuild()) {
-      return interaction.reply({ content: 'This command can only be used inside a server.', ephemeral: true });
+      return interaction.followUp({ content: 'This command can only be used inside a server.', ephemeral: true });
     }
 
     if (!isAllowed(interaction)) {
-      return buildPermissionReply(interaction);
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions or the configured giveaway role to use this command.')], ephemeral: true });
     }
 
     const subcommand = interaction.options.getSubcommand();
@@ -287,11 +288,11 @@ module.exports = {
       const durationMs = parseDurationToMs(duration);
 
       if (!durationMs) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Use a duration like 30m, 2h, 1d, or 1w.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Use a duration like 30m, 2h, 1d, or 1w.')], ephemeral: true });
       }
 
       if (!targetChannel || !targetChannel.isTextBased() || targetChannel.isThread()) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please choose a valid text channel for the giveaway.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please choose a valid text channel for the giveaway.')], ephemeral: true });
       }
 
       const giveaway = {
@@ -322,17 +323,17 @@ module.exports = {
         await scheduleGiveawayEnd(giveaway, interaction.client);
 
         const successEmbed = buildServerEmbed(interaction, 0x57F287, `Giveaway created successfully. ID: ${giveaway.id}`);
-        return interaction.reply({ embeds: [successEmbed], ephemeral: true });
+        return interaction.followUp({ embeds: [successEmbed], ephemeral: true });
       } catch (error) {
         console.error(error);
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'I could not create the giveaway. Please check bot permissions and the target channel.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'I could not create the giveaway. Please check bot permissions and the target channel.')], ephemeral: true });
       }
     }
 
     if (subcommand === 'list') {
       const giveaways = await getGuildGiveaways(interaction.guild.id);
       if (giveaways.length === 0) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x5865F2, 'No giveaways found for this server.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0x5865F2, 'No giveaways found for this server.')], ephemeral: true });
       }
 
       const fields = giveaways.slice(0, 8).map((giveaway) => ({
@@ -346,7 +347,7 @@ module.exports = {
         .setDescription('Current giveaways for this server.')
         .addFields(fields);
 
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return interaction.followUp({ embeds: [embed], ephemeral: true });
     }
 
     if (subcommand === 'edit') {
@@ -357,11 +358,11 @@ module.exports = {
       const giveaway = await Giveaway.findOne({ id: giveawayId, guildId: interaction.guild.id });
 
       if (!giveaway) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
       }
 
       if (giveaway.status === 'ended') {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Completed giveaways cannot be edited.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Completed giveaways cannot be edited.')], ephemeral: true });
       }
 
       if (prize) giveaway.prize = prize;
@@ -369,7 +370,7 @@ module.exports = {
       if (duration) {
         const durationMs = parseDurationToMs(duration);
         if (!durationMs) {
-          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Use a duration like 30m, 2h, 1d, or 1w.')], ephemeral: true });
+          return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Use a duration like 30m, 2h, 1d, or 1w.')], ephemeral: true });
         }
         giveaway.durationMs = durationMs;
         giveaway.endAt = Date.now() + durationMs;
@@ -379,7 +380,7 @@ module.exports = {
       await refreshGiveawayMessage(giveaway.toObject(), interaction.client);
       await scheduleGiveawayEnd(giveaway.toObject(), interaction.client);
 
-      return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Giveaway updated successfully.')], ephemeral: true });
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Giveaway updated successfully.')], ephemeral: true });
     }
 
     if (subcommand === 'delete') {
@@ -387,7 +388,7 @@ module.exports = {
       const giveaway = await Giveaway.findOneAndDelete({ id: giveawayId, guildId: interaction.guild.id });
 
       if (!giveaway) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
       }
 
       clearTimeout(giveawayTimers.get(giveaway.id));
@@ -398,7 +399,7 @@ module.exports = {
         await message.delete().catch(() => null);
       }
 
-      return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Giveaway deleted successfully.')], ephemeral: true });
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Giveaway deleted successfully.')], ephemeral: true });
     }
 
     if (subcommand === 'info') {
@@ -406,7 +407,7 @@ module.exports = {
       const giveaway = await Giveaway.findOne({ id: giveawayId, guildId: interaction.guild.id }).lean();
 
       if (!giveaway) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
       }
 
       const participantCount = giveaway.participantCount || 0;
@@ -422,21 +423,21 @@ module.exports = {
           { name: 'Hosted by', value: `<@${giveaway.hostedBy}>`, inline: false }
         );
 
-      return interaction.reply({ embeds: [infoEmbed], ephemeral: true });
+      return interaction.followUp({ embeds: [infoEmbed], ephemeral: true });
     }
 
     if (subcommand === 'reroll') {
       const giveawayId = interaction.options.getString('giveaway_id', true);
       const giveaway = await Giveaway.findOne({ id: giveawayId, guildId: interaction.guild.id });
       if (!giveaway) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
       }
 
       const message = await getGiveawayMessage(giveaway, interaction.client);
       const participantIds = await getParticipantIds(message);
 
       if (participantIds.length === 0) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'There are no participants to reroll from.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'There are no participants to reroll from.')], ephemeral: true });
       }
 
       const shuffled = [...participantIds].sort(() => Math.random() - 0.5);
@@ -445,7 +446,7 @@ module.exports = {
       await giveaway.save();
       await refreshGiveawayMessage(giveaway.toObject(), interaction.client);
 
-      return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, `Reroll complete. Winners: ${winnersList.map((id) => `<@${id}>`).join(', ')}`)], ephemeral: true });
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0x57F287, `Reroll complete. Winners: ${winnersList.map((id) => `<@${id}>`).join(', ')}`)], ephemeral: true });
     }
 
     if (subcommand === 'end') {
@@ -453,18 +454,18 @@ module.exports = {
       const giveaway = await Giveaway.findOne({ id: giveawayId, guildId: interaction.guild.id });
 
       if (!giveaway) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Giveaway not found.')], ephemeral: true });
       }
 
       if (giveaway.status === 'ended') {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'This giveaway is already ended.')], ephemeral: true });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'This giveaway is already ended.')], ephemeral: true });
       }
 
       await finalizeGiveaway(giveaway.id, interaction.client);
-      return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Giveaway ended successfully.')], ephemeral: true });
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0x57F287, 'Giveaway ended successfully.')], ephemeral: true });
     }
 
-    return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Unknown giveaway subcommand.')], ephemeral: true });
+    return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Unknown giveaway subcommand.')], ephemeral: true });
   },
 
   async initialize(client) {

@@ -11,7 +11,7 @@ function isAdmin(interaction) {
 }
 
 function buildPermissionReply(interaction) {
-  return interaction.reply({
+  return interaction.followUp({
     embeds: [buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to use this command.')]
   });
 }
@@ -97,12 +97,13 @@ module.exports = {
     ),
 
   async execute(interaction) {
+    await interaction.deferReply().catch(() => null);
     if (!interaction.inGuild()) {
-      return interaction.reply({ content: 'This command can only be used inside a server.' });
+      return interaction.followUp({ content: 'This command can only be used inside a server.' });
     }
 
     if (!isAdmin(interaction)) {
-      return buildPermissionReply(interaction);
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to use this command.')] });
     }
 
     const subcommand = interaction.options.getSubcommand();
@@ -125,7 +126,7 @@ module.exports = {
           { name: 'Description', value: voucher.description, inline: false }
         );
 
-      return interaction.reply({ embeds: [embed] });
+      return interaction.followUp({ embeds: [embed] });
     }
 
     if (subcommand === 'use') {
@@ -133,7 +134,7 @@ module.exports = {
       const voucher = await Voucher.findOne({ guildId, code: codeInput });
 
       if (!voucher) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Voucher not found for this server.')] });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Voucher not found for this server.')] });
       }
 
       voucher.usedAt = new Date();
@@ -149,12 +150,12 @@ module.exports = {
           { name: 'Usage count', value: `${voucher.uses.length}`, inline: false }
         );
 
-      return interaction.reply({ embeds: [successEmbed] });
+      return interaction.followUp({ embeds: [successEmbed] });
     }
 
     if (subcommand === 'list') {
       if (guildVouchers.length === 0) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x5865F2, 'No vouchers found for this server.')] });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0x5865F2, 'No vouchers found for this server.')] });
       }
 
       const fields = guildVouchers.slice(0, MAX_FIELDS).map((voucher) => ({
@@ -169,7 +170,7 @@ module.exports = {
         .setDescription(`Showing ${fields.length} of ${guildVouchers.length} vouchers.`)
         .addFields(fields);
 
-      return interaction.reply({ embeds: [embed] });
+      return interaction.followUp({ embeds: [embed] });
     }
 
     if (subcommand === 'delete') {
@@ -177,12 +178,12 @@ module.exports = {
       const deleted = await Voucher.findOneAndDelete({ guildId, code: codeInput });
 
       if (!deleted) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Voucher not found for this server.')] });
+        return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Voucher not found for this server.')] });
       }
 
-      return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x57F287, `Voucher ${codeInput} deleted successfully.`)] });
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0x57F287, `Voucher ${codeInput} deleted successfully.`)] });
     }
 
-    return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Unknown voucher subcommand.')] });
+    return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Unknown voucher subcommand.')] });
   }
 };
