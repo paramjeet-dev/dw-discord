@@ -39,6 +39,50 @@ function readModalField(interaction, customId, fallback = '') {
   }
 }
 
+function buildTicketSetupNavigationRow({ nextId, nextLabel, backId, backLabel }) {
+  const row = new ActionRowBuilder();
+
+  if (backId) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(backId)
+        .setLabel(backLabel || 'Back')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(nextId)
+      .setLabel(nextLabel || 'Continue')
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  return row;
+}
+
+function buildTicketSetupButtonRow({ nextId, nextLabel, backId, backLabel, saveLabel }) {
+  const row = new ActionRowBuilder();
+
+  if (backId) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(backId)
+        .setLabel(backLabel || 'Back')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+
+  row.addComponents(
+    new ButtonBuilder()
+      .setCustomId(nextId)
+      .setLabel(nextLabel || saveLabel || 'Continue')
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  return row;
+}
+
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
@@ -157,6 +201,70 @@ module.exports = {
           }
           await interaction.showModal(buildTicketUserModal('remove')).catch(() => null);
           return null;
+        },
+        'ticket-setup-open-page-1': async () => {
+          const draftKey = `${interaction.guildId}:${interaction.user.id}`;
+          const draft = ticketSetupDrafts.get(draftKey) || {};
+          const settings = await getTicketSettings(interaction.guildId) || {};
+          await interaction.showModal(buildTicketSetupModal(1, { ...settings, ...draft })).catch(() => null);
+          return null;
+        },
+        'ticket-setup-open-page-2': async () => {
+          const draftKey = `${interaction.guildId}:${interaction.user.id}`;
+          const draft = ticketSetupDrafts.get(draftKey) || {};
+          const settings = await getTicketSettings(interaction.guildId) || {};
+          await interaction.showModal(buildTicketSetupModal(2, { ...settings, ...draft })).catch(() => null);
+          return null;
+        },
+        'ticket-setup-open-page-3': async () => {
+          const draftKey = `${interaction.guildId}:${interaction.user.id}`;
+          const draft = ticketSetupDrafts.get(draftKey) || {};
+          const settings = await getTicketSettings(interaction.guildId) || {};
+          await interaction.showModal(buildTicketSetupModal(3, { ...settings, ...draft })).catch(() => null);
+          return null;
+        },
+        'ticket-setup-save': async () => {
+          const draftKey = `${interaction.guildId}:${interaction.user.id}`;
+          const draft = ticketSetupDrafts.get(draftKey) || {};
+
+          const panelOptions = String(draft.panelOptions || 'general,billing,bug,other')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean);
+
+          const pingTargets = String(draft.pingTargets || '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean)
+            .map((value) => value.match(/\d{17,20}/)?.[0] || value)
+            .filter(Boolean);
+
+          await ensureTicketSettings(interaction.guildId, {
+            guildId: interaction.guildId,
+            panelName: draft.panelName || 'Support tickets',
+            panelHeader: draft.panelHeader || 'Open a support ticket',
+            panelMessage: draft.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.',
+            panelMessageAbove: draft.panelMessageAbove || '',
+            supportRoleId: draft.supportRoleId || null,
+            categoryId: draft.categoryId || null,
+            panelChannelId: draft.panelChannelId || null,
+            transcriptChannelId: draft.transcriptChannelId || null,
+            ticketOpeningMessage: draft.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.',
+            panelType: draft.panelType || 'buttons',
+            panelOptions: panelOptions.length ? panelOptions : ['general', 'billing', 'bug', 'other'],
+            pingUserIds: pingTargets.filter((id) => /^\d{17,20}$/.test(id)),
+            pingRoleIds: [],
+            enabled: true,
+            allowUserOpenTickets: true,
+            defaultReason: 'Customer support request.'
+          });
+
+          ticketSetupDrafts.delete(draftKey);
+          return {
+            title: 'Ticket system configured',
+            description: `Your ticket settings were saved for ${interaction.guild.name}.`,
+            color: 0x57F287
+          };
         }
       };
 
@@ -190,77 +298,69 @@ module.exports = {
 
     if (interaction.isModalSubmit()) {
       try {
-        if (interaction.customId.startsWith('ticket-setup-page-')) {
-          const page = Number(interaction.customId.replace('ticket-setup-page-', '')) || 1;
+        if (interaction.customId.startsWith('ticket-setup-page-1')) {
           const draftKey = `${interaction.guildId}:${interaction.user.id}`;
+          const pageOneDraft = parseTicketSetupDraft(interaction);
+          ticketSetupDrafts.set(draftKey, pageOneDraft);
 
-          if (page === 1) {
-            const pageOneDraft = parseTicketSetupDraft(interaction);
-            ticketSetupDrafts.set(draftKey, pageOneDraft);
-            const existingSettings = await getTicketSettings(interaction.guildId) || {};
-            const nextModal = buildTicketSetupModal(2, { ...existingSettings, ...pageOneDraft });
-            await interaction.showModal(nextModal).catch(() => null);
-            return;
-          }
+          const embed = new EmbedBuilder()
+            .setColor(0x5865F2)
+            .setTitle('Ticket setup: continue')
+            .setDescription('Your first page is saved. Use the button below to continue to the next setup page.');
 
-          if (page === 2) {
-            const existingDraft = ticketSetupDrafts.get(draftKey) || {};
-            const pageTwoDraft = {
-              panelMessageAbove: readModalField(interaction, 'panel_message_above', '') || '',
-              categoryId: readModalField(interaction, 'ticket_category_id', existingDraft.categoryId || '') || existingDraft.categoryId || null,
-              transcriptChannelId: readModalField(interaction, 'transcript_channel_id', existingDraft.transcriptChannelId || '') || existingDraft.transcriptChannelId || null,
-              ticketOpeningMessage: readModalField(interaction, 'ticket_opening_message', 'Your ticket has been created. A staff member will respond soon.') || 'Your ticket has been created. A staff member will respond soon.',
-              pingTargets: readModalField(interaction, 'ping_targets', '') || '',
-            };
+          return interaction.reply({
+            embeds: [embed],
+            components: [buildTicketSetupButtonRow({ nextId: 'ticket-setup-open-page-2', nextLabel: 'Next page' })],
+            ephemeral: true
+          });
+        }
 
-            ticketSetupDrafts.set(draftKey, { ...existingDraft, ...pageTwoDraft });
-            const existingSettings = await getTicketSettings(interaction.guildId) || {};
-            const nextModal = buildTicketSetupModal(3, { ...existingSettings, ...ticketSetupDrafts.get(draftKey) });
-            await interaction.showModal(nextModal).catch(() => null);
-            return;
-          }
+        if (interaction.customId.startsWith('ticket-setup-page-2')) {
+          const draftKey = `${interaction.guildId}:${interaction.user.id}`;
+          const existingDraft = ticketSetupDrafts.get(draftKey) || {};
+          const pageTwoDraft = {
+            panelMessageAbove: readModalField(interaction, 'panel_message_above', '') || '',
+            categoryId: readModalField(interaction, 'ticket_category_id', existingDraft.categoryId || '') || existingDraft.categoryId || null,
+            transcriptChannelId: readModalField(interaction, 'transcript_channel_id', existingDraft.transcriptChannelId || '') || existingDraft.transcriptChannelId || null,
+            ticketOpeningMessage: readModalField(interaction, 'ticket_opening_message', 'Your ticket has been created. A staff member will respond soon.') || 'Your ticket has been created. A staff member will respond soon.',
+            pingTargets: readModalField(interaction, 'ping_targets', '') || '',
+          };
 
-          const pageOneDraft = ticketSetupDrafts.get(draftKey) || {};
+          ticketSetupDrafts.set(draftKey, { ...existingDraft, ...pageTwoDraft });
+
+          const embed = new EmbedBuilder()
+            .setColor(0x5865F2)
+            .setTitle('Ticket setup: final page')
+            .setDescription('Your second page is saved. Use the button below to open the final setup page.');
+
+          return interaction.reply({
+            embeds: [embed],
+            components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-1', backLabel: 'Back', nextId: 'ticket-setup-open-page-3', nextLabel: 'Final page' })],
+            ephemeral: true
+          });
+        }
+
+        if (interaction.customId.startsWith('ticket-setup-page-3')) {
+          const draftKey = `${interaction.guildId}:${interaction.user.id}`;
+          const existingDraft = ticketSetupDrafts.get(draftKey) || {};
           const finalDraft = {
-            ...pageOneDraft,
+            ...existingDraft,
             panelType: readModalField(interaction, 'panel_type', 'buttons') || 'buttons',
             panelOptions: readModalField(interaction, 'panel_options', 'general,billing,bug,other') || 'general,billing,bug,other',
           };
 
-          const panelOptions = String(finalDraft.panelOptions || 'general,billing,bug,other')
-            .split(',')
-            .map((value) => value.trim())
-            .filter(Boolean);
+          ticketSetupDrafts.set(draftKey, finalDraft);
 
-          const pingTargets = String(finalDraft.pingTargets || '')
-            .split(',')
-            .map((value) => value.trim())
-            .filter(Boolean)
-            .map((value) => value.match(/\d{17,20}/)?.[0] || value)
-            .filter(Boolean);
+          const embed = new EmbedBuilder()
+            .setColor(0x57F287)
+            .setTitle('Ticket setup: save')
+            .setDescription('Your final setup values are ready to be saved.');
 
-          await ensureTicketSettings(interaction.guildId, {
-            guildId: interaction.guildId,
-            panelName: finalDraft.panelName || 'Support tickets',
-            panelHeader: finalDraft.panelHeader || 'Open a support ticket',
-            panelMessage: finalDraft.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.',
-            panelMessageAbove: finalDraft.panelMessageAbove || '',
-            supportRoleId: finalDraft.supportRoleId || null,
-            categoryId: finalDraft.categoryId || null,
-            panelChannelId: finalDraft.panelChannelId || null,
-            transcriptChannelId: finalDraft.transcriptChannelId || null,
-            ticketOpeningMessage: finalDraft.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.',
-            panelType: finalDraft.panelType || 'buttons',
-            panelOptions: panelOptions.length ? panelOptions : ['general', 'billing', 'bug', 'other'],
-            pingUserIds: pingTargets.filter((id) => /^\d{17,20}$/.test(id)),
-            pingRoleIds: [],
-            enabled: true,
-            allowUserOpenTickets: true,
-            defaultReason: 'Customer support request.'
+          return interaction.reply({
+            embeds: [embed],
+            components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-2', backLabel: 'Back', nextId: 'ticket-setup-save', nextLabel: 'Save settings' })],
+            ephemeral: true
           });
-
-          ticketSetupDrafts.delete(draftKey);
-          return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('Ticket system configured').setDescription(`Your ticket settings were saved for ${interaction.guild.name}.`)], ephemeral: true });
         }
 
         if (interaction.customId.startsWith('ticket-user-modal-')) {
