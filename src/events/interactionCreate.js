@@ -297,6 +297,7 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit()) {
+      interaction.deferReply({ ephemeral: false }).catch(() => null);
       try {
         if (interaction.customId.startsWith('ticket-setup-page-1')) {
           const draftKey = `${interaction.guildId}:${interaction.user.id}`;
@@ -308,10 +309,10 @@ module.exports = {
             .setTitle('Ticket setup: continue')
             .setDescription('Your first page is saved. Use the button below to continue to the next setup page.');
 
-          return interaction.reply({
+          return interaction.followUp({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ nextId: 'ticket-setup-open-page-2', nextLabel: 'Next page' })],
-            ephemeral: true
+            ephemeral: false
           });
         }
 
@@ -333,10 +334,10 @@ module.exports = {
             .setTitle('Ticket setup: final page')
             .setDescription('Your second page is saved. Use the button below to open the final setup page.');
 
-          return interaction.reply({
+          return interaction.followUp({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-1', backLabel: 'Back', nextId: 'ticket-setup-open-page-3', nextLabel: 'Final page' })],
-            ephemeral: true
+            ephemeral: false
           });
         }
 
@@ -356,10 +357,10 @@ module.exports = {
             .setTitle('Ticket setup: save')
             .setDescription('Your final setup values are ready to be saved.');
 
-          return interaction.reply({
+          return interaction.followUp({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-2', backLabel: 'Back', nextId: 'ticket-setup-save', nextLabel: 'Save settings' })],
-            ephemeral: true
+            ephemeral: false
           });
         }
 
