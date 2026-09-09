@@ -297,8 +297,9 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit()) {
-      interaction.deferReply({ ephemeral: false }).catch(() => null);
+
       try {
+        interaction.deferReply({ ephemeral: false }).catch(() => null);
         if (interaction.customId.startsWith('ticket-setup-page-1')) {
           const draftKey = `${interaction.guildId}:${interaction.user.id}`;
           const pageOneDraft = parseTicketSetupDraft(interaction);
@@ -411,7 +412,7 @@ module.exports = {
         if (!interaction.deferred && !interaction.replied) {
           await interaction.deferReply({ ephemeral: true }).catch(() => null);
         }
-      } catch (err) {}
+      } catch (err) { }
 
       return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket selection menus are not enabled in this version yet.')], ephemeral: true });
     }
