@@ -83,6 +83,50 @@ function buildTicketSetupButtonRow({ nextId, nextLabel, backId, backLabel, saveL
   return row;
 }
 
+function formatTicketSetupValue(value, fallback = 'Not set') {
+  if (value === undefined || value === null || value === '') return fallback;
+  return String(value);
+}
+
+function buildTicketSetupConfirmationEmbed(draft = {}) {
+  const panelChannel = draft.panelChannelId ? `<#${draft.panelChannelId}>` : 'Not set';
+  const supportRole = draft.supportRoleId ? `<@&${draft.supportRoleId}>` : 'Not set';
+  const transcriptChannel = draft.transcriptChannelId ? `<#${draft.transcriptChannelId}>` : 'Not set';
+  const categoryId = draft.categoryId ? `<#${draft.categoryId}>` : 'Not set';
+
+  return new EmbedBuilder()
+    .setColor(0x5865F2)
+    .setTitle('Confirm ticket panel settings')
+    .setDescription('Review the values below, then click Save to publish the panel in the selected channel.')
+    .addFields(
+      { name: 'Panel name', value: formatTicketSetupValue(draft.panelName), inline: true },
+      { name: 'Panel header', value: formatTicketSetupValue(draft.panelHeader), inline: true },
+      { name: 'Panel channel', value: panelChannel, inline: true },
+      { name: 'Staff role', value: supportRole, inline: true },
+      { name: 'Embed message', value: formatTicketSetupValue(draft.panelMessage), inline: false },
+      { name: 'Message above embed', value: formatTicketSetupValue(draft.panelMessageAbove), inline: false },
+      { name: 'Opening category', value: categoryId, inline: true },
+      { name: 'Transcript channel', value: transcriptChannel, inline: true },
+      { name: 'Opening message', value: formatTicketSetupValue(draft.ticketOpeningMessage), inline: false },
+      { name: 'Ping targets', value: formatTicketSetupValue(draft.pingTargets), inline: false },
+      { name: 'Panel type', value: formatTicketSetupValue(draft.panelType || 'buttons'), inline: true },
+      { name: 'Panel options', value: formatTicketSetupValue((Array.isArray(draft.panelOptions) ? draft.panelOptions.join(', ') : draft.panelOptions) || 'general, billing, bug, other'), inline: true }
+    );
+}
+
+function buildTicketSetupReviewButtons() {
+  return [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('ticket-setup-open-page-1').setLabel('Edit Page 1').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('ticket-setup-open-page-2').setLabel('Edit Page 2').setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId('ticket-setup-open-page-3').setLabel('Edit Page 3').setStyle(ButtonStyle.Secondary)
+    ),
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId('ticket-setup-save').setLabel('Save panel').setStyle(ButtonStyle.Success)
+    )
+  ];
+}
+
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
@@ -239,7 +283,7 @@ module.exports = {
             .map((value) => value.match(/\d{17,20}/)?.[0] || value)
             .filter(Boolean);
 
-          await ensureTicketSettings(interaction.guildId, {
+          const savedSettings = await ensureTicketSettings(interaction.guildId, {
             guildId: interaction.guildId,
             panelName: draft.panelName || 'Support tickets',
             panelHeader: draft.panelHeader || 'Open a support ticket',
@@ -259,10 +303,17 @@ module.exports = {
             defaultReason: 'Customer support request.'
           });
 
+          const panelChannelId = savedSettings?.panelChannelId || draft.panelChannelId;
+          if (!panelChannelId) {
+            throw new Error('No panel channel was selected. Please choose a panel channel on page 1.');
+          }
+
+          await require('../utils/ticketHelper').createPanelMessage(interaction, panelChannelId);
           ticketSetupDrafts.delete(draftKey);
+
           return {
-            title: 'Ticket system configured',
-            description: `Your ticket settings were saved for ${interaction.guild.name}.`,
+            title: 'Ticket panel published',
+            description: `The ticket panel was sent to <#${panelChannelId}>.`,
             color: 0x57F287
           };
         }
@@ -349,14 +400,9 @@ module.exports = {
 
           ticketSetupDrafts.set(draftKey, finalDraft);
 
-          const embed = new EmbedBuilder()
-            .setColor(0x57F287)
-            .setTitle('Ticket setup: save')
-            .setDescription('Your final setup values are ready to be saved.');
-
           return interaction.reply({
-            embeds: [embed],
-            components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-2', backLabel: 'Back', nextId: 'ticket-setup-save', nextLabel: 'Save settings' })]
+            embeds: [buildTicketSetupConfirmationEmbed(finalDraft)],
+            components: buildTicketSetupReviewButtons()
           });
         }
 
