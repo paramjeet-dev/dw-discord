@@ -73,6 +73,17 @@ async function ensureTicketSettings(guildId, overrides = {}) {
   return created.toObject();
 }
 
+function buildTicketFooter(guild) {
+  const serverName = guild?.name || 'Server';
+  const iconUrl = guild?.iconURL?.() || null;
+  const localTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+
+  return {
+    text: `${serverName} • ${localTime}`,
+    iconURL: iconUrl || undefined
+  };
+}
+
 function buildTicketEmbed(ticket, guild) {
   const status = ticket.status === 'closed' ? 'Closed' : ticket.status === 'open' ? 'Open' : 'Unknown';
   const claimedBy = ticket.claimedBy ? `<@${ticket.claimedBy}>` : 'Unclaimed';
@@ -83,6 +94,7 @@ function buildTicketEmbed(ticket, guild) {
     .setColor(ticket.status === 'closed' ? 0xED4245 : 0x5865F2)
     .setTitle(`Ticket ${channel ? channel.name : 'Details'}`)
     .setDescription(ticket.reason || 'No reason provided.')
+    .setFooter(buildTicketFooter(guild))
     .addFields(
       { name: 'Opened by', value: `<@${ticket.openerId}>`, inline: true },
       { name: 'Status', value: status, inline: true },
@@ -90,6 +102,51 @@ function buildTicketEmbed(ticket, guild) {
       { name: 'Participants', value: participants, inline: false },
       { name: 'Summary', value: ticket.summary || 'No summary provided.', inline: false }
     );
+}
+
+function buildTicketConfirmationRow(action = 'close') {
+  const confirmLabel = action === 'delete' ? 'Delete ticket' : 'Confirm close';
+  const cancelLabel = 'Cancel';
+
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`ticket-${action}-confirm`)
+      .setLabel(confirmLabel)
+      .setStyle(action === 'delete' ? ButtonStyle.Danger : ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(`ticket-${action}-cancel`)
+      .setLabel(cancelLabel)
+      .setStyle(ButtonStyle.Secondary)
+  );
+}
+
+function buildTicketUserActionRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('ticket-users-add')
+      .setLabel('Add user')
+      .setStyle(ButtonStyle.Success),
+    new ButtonBuilder()
+      .setCustomId('ticket-users-remove')
+      .setLabel('Remove user')
+      .setStyle(ButtonStyle.Danger)
+  );
+}
+
+function buildTicketUserModal(action = 'add') {
+  const modal = new ModalBuilder()
+    .setCustomId(`ticket-user-modal-${action}`)
+    .setTitle(action === 'add' ? 'Add user to ticket' : 'Remove user from ticket');
+
+  const targetInput = new TextInputBuilder()
+    .setCustomId('ticket-user-id')
+    .setLabel('User ID or mention')
+    .setPlaceholder('Example: 123456789012345678 or @user')
+    .setRequired(true)
+    .setStyle(TextInputStyle.Short);
+
+  modal.addComponents(new ActionRowBuilder().addComponents(targetInput));
+  return modal;
 }
 
 function buildTicketActionRow(ticket) {
@@ -107,7 +164,22 @@ function buildTicketActionRow(ticket) {
       .setCustomId(ticket.claimedBy ? 'ticket-unclaim' : 'ticket-claim')
       .setLabel(ticket.claimedBy ? 'Unclaim ticket' : 'Claim ticket')
       .setStyle(ticket.claimedBy ? ButtonStyle.Secondary : ButtonStyle.Primary)
-      .setEmoji(ticket.claimedBy ? '↩️' : '✅')
+      .setEmoji(ticket.claimedBy ? '↩️' : '✅'),
+    new ButtonBuilder()
+      .setCustomId('ticket-users')
+      .setLabel('Users')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('👥'),
+    new ButtonBuilder()
+      .setCustomId('ticket-transcript')
+      .setLabel('Transcript')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('📄'),
+    new ButtonBuilder()
+      .setCustomId('ticket-delete')
+      .setLabel('Delete')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🗑️')
   );
 
   return row;
@@ -723,6 +795,14 @@ async function canManageTicket(interaction, ticket) {
   return false;
 }
 
+async function canManageTicketStaff(interaction) {
+  if (!interaction.guild) return false;
+  if (interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) return true;
+
+  const settings = await getTicketSettings(interaction.guildId);
+  return !!(settings?.supportRoleId && interaction.member?.roles?.cache?.has(settings.supportRoleId));
+}
+
 module.exports = {
   getTicketSettings,
   normalizeTicketCategories,
@@ -731,6 +811,9 @@ module.exports = {
   ensureTicketSettings,
   buildTicketEmbed,
   buildTicketActionRow,
+  buildTicketConfirmationRow,
+  buildTicketUserActionRow,
+  buildTicketUserModal,
   buildTicketPanelRow,
   buildTicketModal,
   buildTicketFormResponse,
@@ -753,5 +836,6 @@ module.exports = {
   getTicketStatsForGuild,
   buildTicketListEmbed,
   canManageTicket,
+  canManageTicketStaff,
   TICKET_BUTTONS
 };
