@@ -259,7 +259,7 @@ function buildTicketPanelRow(settings = {}) {
 function buildTicketSetupModal(page = 1, defaults = {}) {
   const modal = new ModalBuilder()
     .setCustomId(`ticket-setup-page-${page}`)
-    .setTitle(page === 1 ? 'Ticket setup - Page 1' : 'Ticket setup - Page 2');
+    .setTitle(`Ticket setup - Page ${page}`);
 
   const panelType = defaults.panelType || 'buttons';
   const panelOptions = Array.isArray(defaults.panelOptions)
@@ -273,7 +273,7 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
       ['panel_name', 'Panel name', defaults.panelName || 'Support tickets'],
       ['panel_header', 'Panel header', defaults.panelHeader || 'Open a support ticket'],
       ['panel_message', 'Panel message (embed)', defaults.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.'],
-      ['staff_role_id', 'Staff role ID', defaults.supportRoleId || ''],
+      ['staff_role_id', 'Staff role (@role or ID)', defaults.supportRoleId || ''],
       ['panel_channel_id', 'Panel channel ID', defaults.panelChannelId || '']
     ];
 
@@ -293,25 +293,29 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
     return modal;
   }
 
-  const fields = [
-    ['panel_message_above', 'Panel message above embed', defaults.panelMessageAbove || ''],
-    ['ticket_category_id', 'Opening category ID', defaults.categoryId || ''],
-    ['transcript_channel_id', 'Transcript channel ID', defaults.transcriptChannelId || ''],
-    ['ticket_opening_message', 'Ticket opening message', defaults.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.'],
-    ['ping_targets', 'Ping roles/users (comma-separated IDs)', defaults.pingTargets || '']
-  ];
+  if (page === 2) {
+    const fields = [
+      ['panel_message_above', 'Panel message above embed', defaults.panelMessageAbove || ''],
+      ['ticket_category_id', 'Opening category ID', defaults.categoryId || ''],
+      ['transcript_channel_id', 'Transcript channel ID', defaults.transcriptChannelId || ''],
+      ['ticket_opening_message', 'Ticket opening message', defaults.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.'],
+      ['ping_targets', 'Ping roles/users (comma-separated IDs)', defaults.pingTargets || '']
+    ];
 
-  for (const [customId, label, value] of fields) {
-    modal.addComponents(
-      new ActionRowBuilder().addComponents(
-        new TextInputBuilder()
-          .setCustomId(customId)
-          .setLabel(label)
-          .setStyle(TextInputStyle.Short)
-          .setRequired(false)
-          .setValue(value)
-      )
-    );
+    for (const [customId, label, value] of fields) {
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId(customId)
+            .setLabel(label)
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setValue(value)
+        )
+      );
+    }
+
+    return modal;
   }
 
   modal.addComponents(
@@ -322,10 +326,7 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setValue(panelType)
-    )
-  );
-
-  modal.addComponents(
+    ),
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('panel_options')
@@ -339,16 +340,22 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
   return modal;
 }
 
+function parseDiscordId(value) {
+  if (!value) return null;
+  const match = String(value).match(/(\d{17,20})/);
+  return match ? match[1] : String(value).trim() || null;
+}
+
 function parseTicketSetupDraft(interaction) {
   const page1 = {
     panelName: interaction.fields.getTextInputValue('panel_name') || 'Support tickets',
     panelHeader: interaction.fields.getTextInputValue('panel_header') || 'Open a support ticket',
     panelMessage: interaction.fields.getTextInputValue('panel_message') || 'Need help? Use the panel below and a staff member will respond soon.',
     panelMessageAbove: interaction.fields.getTextInputValue('panel_message_above') || '',
-    supportRoleId: interaction.fields.getTextInputValue('staff_role_id') || null,
-    categoryId: interaction.fields.getTextInputValue('ticket_category_id') || null,
-    panelChannelId: interaction.fields.getTextInputValue('panel_channel_id') || null,
-    transcriptChannelId: interaction.fields.getTextInputValue('transcript_channel_id') || null,
+    supportRoleId: parseDiscordId(interaction.fields.getTextInputValue('staff_role_id')) || null,
+    categoryId: parseDiscordId(interaction.fields.getTextInputValue('ticket_category_id')) || null,
+    panelChannelId: parseDiscordId(interaction.fields.getTextInputValue('panel_channel_id')) || null,
+    transcriptChannelId: parseDiscordId(interaction.fields.getTextInputValue('transcript_channel_id')) || null,
     ticketOpeningMessage: interaction.fields.getTextInputValue('ticket_opening_message') || 'Your ticket has been created. A staff member will respond soon.',
     pingTargets: interaction.fields.getTextInputValue('ping_targets') || ''
   };
