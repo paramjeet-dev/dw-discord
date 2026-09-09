@@ -5,6 +5,7 @@ const {
   reopenTicket,
   claimTicket,
   unclaimTicket,
+  openTicketButton,
   canManageTicket
 } = require('../utils/ticketHelper');
 
@@ -38,6 +39,10 @@ module.exports = {
 
     if (interaction.isButton()) {
       const ticketHandlers = {
+        'open-ticket': async () => {
+          const ticket = await openTicketButton(interaction);
+          return { title: 'Ticket created', description: `Ticket created in ${ticket.channel.toString()}`, color: 0x57F287 };
+        },
         'ticket-close': async () => {
           if (!(await canManageTicket(interaction, null))) {
             throw new Error('You do not have permission to close this ticket.');

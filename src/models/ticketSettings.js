@@ -19,6 +19,14 @@ const ticketSettingsSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  panelChannelId: {
+    type: String,
+    default: null
+  },
+  panelMessageId: {
+    type: String,
+    default: null
+  },
   ticketPrefix: {
     type: String,
     default: 'ticket'
@@ -26,6 +34,14 @@ const ticketSettingsSchema = new mongoose.Schema({
   enabled: {
     type: Boolean,
     default: true
+  },
+  allowUserOpenTickets: {
+    type: Boolean,
+    default: true
+  },
+  defaultReason: {
+    type: String,
+    default: 'Customer support request.'
   },
   updatedAt: {
     type: Date,

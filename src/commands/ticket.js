@@ -2,6 +2,7 @@ const { SlashCommandBuilder, PermissionsBitField, EmbedBuilder } = require('disc
 const { buildServerEmbed } = require('../utils/embedHelper');
 const {
   createTicket,
+  createPanelMessage,
   closeTicket,
   reopenTicket,
   claimTicket,
@@ -11,6 +12,7 @@ const {
   renameTicket,
   ensureTicketSettings,
   getTicketInfo,
+  getTicketsForGuild,
   canManageTicket
 } = require('../utils/ticketHelper');
 
@@ -69,6 +71,17 @@ module.exports = {
     )
     .addSubcommand((subcommand) =>
       subcommand
+        .setName('panel')
+        .setDescription('Create the support ticket panel in a channel.')
+        .addChannelOption((option) => option.setName('channel').setDescription('Channel to post the ticket panel in.').setRequired(false))
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
+        .setName('list')
+        .setDescription('List open tickets in this guild.')
+    )
+    .addSubcommand((subcommand) =>
+      subcommand
         .setName('setup')
         .setDescription('Configure the ticketing module for this server.')
         .addChannelOption((option) => option.setName('category').setDescription('Category used for ticket channels.').setRequired(false))
@@ -97,9 +110,33 @@ module.exports = {
           const reason = interaction.options.getString('reason') || 'No reason provided.';
           const summary = interaction.options.getString('summary') || 'No summary provided.';
 
-          const result = await createTicket({ interaction, reason, summary });
-          const success = buildServerEmbed(interaction, 0x57F287, `Ticket created: ${result.channel}`);
-          return interaction.editReply({ embeds: [success], content: `Ticket created in ${result.channel.toString()}` });
+          const result = await createTicket({ interaction, reason, summary, type: 'general' });
+          return interaction.editReply({ content: `Ticket created in ${result.channel.toString()}` });
+        }
+
+        case 'panel': {
+          if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+            const embed = buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to create the ticket panel.');
+            return interaction.editReply({ embeds: [embed] });
+          }
+
+          const channel = interaction.options.getChannel('channel') || interaction.channel;
+          const result = await createPanelMessage(interaction, channel.id);
+          const embed = new EmbedBuilder()
+            .setColor(0x57F287)
+            .setTitle('Ticket panel created')
+            .setDescription(`The ticket panel was posted in ${result.message.channel.toString()}.`);
+          return interaction.editReply({ embeds: [embed] });
+        }
+
+        case 'list': {
+          const tickets = await getTicketsForGuild(interaction.guildId);
+          const openTickets = tickets.filter((ticket) => ticket.status === 'open');
+          const embed = new EmbedBuilder()
+            .setColor(0x5865F2)
+            .setTitle('Open tickets')
+            .setDescription(openTickets.length > 0 ? openTickets.map((ticket) => `<#${ticket.channelId}> • Opener: <@${ticket.openerId}>`).slice(0, 10).join('\n') : 'No open tickets right now.');
+          return interaction.editReply({ embeds: [embed] });
         }
 
         case 'close': {

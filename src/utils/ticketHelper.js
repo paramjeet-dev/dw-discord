@@ -6,7 +6,8 @@ const TICKET_BUTTONS = {
   close: { label: 'Close ticket', style: ButtonStyle.Danger, emoji: '🔒' },
   reopen: { label: 'Reopen ticket', style: ButtonStyle.Success, emoji: '🔓' },
   claim: { label: 'Claim ticket', style: ButtonStyle.Primary, emoji: '✅' },
-  unclaim: { label: 'Unclaim ticket', style: ButtonStyle.Secondary, emoji: '↩️' }
+  unclaim: { label: 'Unclaim ticket', style: ButtonStyle.Secondary, emoji: '↩️' },
+  open: { label: 'Open ticket', style: ButtonStyle.Primary, emoji: '🎫' }
 };
 
 function toSafeChannelName(value) {
@@ -36,7 +37,7 @@ async function ensureTicketSettings(guildId, overrides = {}) {
     Object.assign(existing, overrides);
     existing.updatedAt = new Date();
     await existing.save();
-    return existing;
+    return existing.toObject();
   }
 
   const created = await TicketSettings.create({ guildId, ...overrides });
@@ -83,6 +84,16 @@ function buildTicketActionRow(ticket) {
   return row;
 }
 
+function buildTicketPanelRow() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId('open-ticket')
+      .setLabel('Open a ticket')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('🎫')
+  );
+}
+
 async function sendTicketStatusMessage(channel, ticket, guild) {
   if (!channel || !channel.isTextBased()) return;
 
@@ -90,6 +101,32 @@ async function sendTicketStatusMessage(channel, ticket, guild) {
     embeds: [buildTicketEmbed(ticket, guild)],
     components: [buildTicketActionRow(ticket)]
   });
+}
+
+async function createPanelMessage(interaction, channelId) {
+  if (!interaction || !interaction.guild) throw new Error('This command can only be used inside a server.');
+
+  const targetChannel = channelId
+    ? interaction.guild.channels.cache.get(channelId) ?? await interaction.guild.channels.fetch(channelId).catch(() => null)
+    : interaction.channel;
+
+  if (!targetChannel || !targetChannel.isTextBased() || targetChannel.isThread()) {
+    throw new Error('The panel channel must be a valid text channel.');
+  }
+
+  const embed = new EmbedBuilder()
+    .setColor(0x5865F2)
+    .setTitle('Open a support ticket')
+    .setDescription('Need help? Use the button below to open a ticket and a staff member will respond soon.')
+    .addFields(
+      { name: 'How it works', value: 'Create a ticket, explain the issue, and wait for a response from support staff.', inline: false },
+      { name: 'Support policy', value: 'Please keep your ticket topic focused and include as much context as possible.', inline: false }
+    );
+
+  const message = await targetChannel.send({ embeds: [embed], components: [buildTicketPanelRow()] });
+
+  const settings = await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId, panelChannelId: targetChannel.id, panelMessageId: message.id });
+  return { message, settings };
 }
 
 async function setTicketPermissionsForMembers(channel, members, allow = true) {
@@ -112,7 +149,7 @@ async function setTicketPermissionsForMembers(channel, members, allow = true) {
   }
 }
 
-async function createTicket({ interaction, reason, summary }) {
+async function createTicket({ interaction, reason, summary, type = 'general' }) {
   if (!interaction.inGuild()) {
     throw new Error('This command can only be used inside a server.');
   }
@@ -129,6 +166,7 @@ async function createTicket({ interaction, reason, summary }) {
   const categoryId = settings.categoryId || null;
   const supportRoleId = settings.supportRoleId || null;
   const ticketPrefix = settings.ticketPrefix || 'ticket';
+  const ticketType = type || 'general';
   const ticketName = `${ticketPrefix}-${toSafeChannelName(interaction.user.username)}-${String(Date.now()).slice(-4)}`;
 
   const category = categoryId ? interaction.guild.channels.cache.get(categoryId) ?? await interaction.guild.channels.fetch(categoryId).catch(() => null) : null;
@@ -155,7 +193,7 @@ async function createTicket({ interaction, reason, summary }) {
     type: 0,
     parent: category ? category.id : null,
     permissionOverwrites,
-    topic: `Ticket created by ${interaction.user.tag} | ${reason || 'No reason provided.'}`
+    topic: `Ticket (${ticketType}) created by ${interaction.user.tag} | ${reason || 'No reason provided.'}`
   });
 
   const ticketDoc = await Ticket.create({
@@ -165,7 +203,7 @@ async function createTicket({ interaction, reason, summary }) {
     createdBy: interaction.user.id,
     status: 'open',
     reason: reason || 'No reason provided.',
-    summary: summary || 'No summary provided.',
+    summary: summary || type === 'general' ? 'General support request.' : `${ticketType} support request.`,
     participants: [interaction.user.id]
   });
 
@@ -180,6 +218,17 @@ async function createTicket({ interaction, reason, summary }) {
   await initialMessage.pin().catch(() => null);
 
   return { channel, ticket: ticketDoc.toObject(), initialMessage };
+}
+
+async function openTicketButton(interaction) {
+  const settings = await getTicketSettings(interaction.guildId);
+  if (!settings || settings.enabled === false) {
+    throw new Error('The ticket system is not enabled for this server.');
+  }
+
+  const reason = `Opened through support panel by ${interaction.user.tag}`;
+  const ticket = await createTicket({ interaction, reason, summary: 'Support request from panel', type: 'general' });
+  return ticket;
 }
 
 async function closeTicket(interaction, options = {}) {
@@ -221,10 +270,7 @@ async function closeTicket(interaction, options = {}) {
 
     await channel.send({
       embeds: [
-        new EmbedBuilder()
-          .setColor(0xED4245)
-          .setTitle('Ticket closed')
-          .setDescription(`This ticket was closed by <@${interaction.user.id}>.`)
+        new EmbedBuilder().setColor(0xED4245).setTitle('Ticket closed').setDescription(`This ticket was closed by <@${interaction.user.id}>.`)
       ]
     });
   }
@@ -261,10 +307,7 @@ async function reopenTicket(interaction, options = {}) {
 
     await channel.send({
       embeds: [
-        new EmbedBuilder()
-          .setColor(0x57F287)
-          .setTitle('Ticket reopened')
-          .setDescription(`This ticket was reopened by <@${interaction.user.id}>.`)
+        new EmbedBuilder().setColor(0x57F287).setTitle('Ticket reopened').setDescription(`This ticket was reopened by <@${interaction.user.id}>.`)
       ]
     });
   }
@@ -314,7 +357,7 @@ async function unclaimTicket(interaction, options = {}) {
 
   const channel = interaction.guild.channels.cache.get(targetChannelId) ?? await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
   if (channel) {
-    await channel.send({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle('Ticket unclaimed').setDescription(`This ticket is no longer claimed.`)] });
+    await channel.send({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle('Ticket unclaimed').setDescription('This ticket is no longer claimed.')] });
   }
 
   return ticket.toObject();
@@ -412,6 +455,10 @@ async function getTicketInfo(guild, channelId) {
   return { ticket, embed: buildTicketEmbed(ticket, guild) };
 }
 
+async function getTicketsForGuild(guildId) {
+  return Ticket.find({ guildId }).sort({ createdAt: -1 }).lean();
+}
+
 async function canManageTicket(interaction, ticket) {
   if (!interaction.guild) return false;
   if (interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) return true;
@@ -428,8 +475,11 @@ module.exports = {
   ensureTicketSettings,
   buildTicketEmbed,
   buildTicketActionRow,
+  buildTicketPanelRow,
+  createPanelMessage,
   sendTicketStatusMessage,
   createTicket,
+  openTicketButton,
   closeTicket,
   reopenTicket,
   claimTicket,
@@ -438,6 +488,7 @@ module.exports = {
   removeUserFromTicket,
   renameTicket,
   getTicketInfo,
+  getTicketsForGuild,
   canManageTicket,
   TICKET_BUTTONS
 };

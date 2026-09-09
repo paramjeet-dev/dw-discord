@@ -8,7 +8,7 @@ assert.equal(payload.name, 'ticket');
 assert.equal(payload.description, 'Create and manage support tickets.');
 
 const subcommandNames = payload.options.map((option) => option.name);
-for (const name of ['create', 'close', 'reopen', 'claim', 'unclaim', 'add', 'remove', 'rename', 'setup', 'info']) {
+for (const name of ['create', 'close', 'reopen', 'claim', 'unclaim', 'add', 'remove', 'rename', 'setup', 'info', 'panel', 'list']) {
   assert.ok(subcommandNames.includes(name), `Missing subcommand: ${name}`);
 }
 
