@@ -346,18 +346,35 @@ function parseDiscordId(value) {
   return match ? match[1] : String(value).trim() || null;
 }
 
+function readModalField(interaction, customId, fallback = '') {
+  try {
+    const value = interaction.fields.getTextInputValue(customId);
+    return value === undefined || value === null ? fallback : value;
+  } catch (error) {
+    const message = error?.message || '';
+    const isMissingModalField = error?.code === 'ModalSubmitInteractionFieldNotFound'
+      || message.includes('Required field with custom id')
+      || message.includes('custom id');
+
+    if (isMissingModalField) {
+      return fallback;
+    }
+    throw error;
+  }
+}
+
 function parseTicketSetupDraft(interaction) {
   const page1 = {
-    panelName: interaction.fields.getTextInputValue('panel_name') || 'Support tickets',
-    panelHeader: interaction.fields.getTextInputValue('panel_header') || 'Open a support ticket',
-    panelMessage: interaction.fields.getTextInputValue('panel_message') || 'Need help? Use the panel below and a staff member will respond soon.',
-    panelMessageAbove: interaction.fields.getTextInputValue('panel_message_above') || '',
-    supportRoleId: parseDiscordId(interaction.fields.getTextInputValue('staff_role_id')) || null,
-    categoryId: parseDiscordId(interaction.fields.getTextInputValue('ticket_category_id')) || null,
-    panelChannelId: parseDiscordId(interaction.fields.getTextInputValue('panel_channel_id')) || null,
-    transcriptChannelId: parseDiscordId(interaction.fields.getTextInputValue('transcript_channel_id')) || null,
-    ticketOpeningMessage: interaction.fields.getTextInputValue('ticket_opening_message') || 'Your ticket has been created. A staff member will respond soon.',
-    pingTargets: interaction.fields.getTextInputValue('ping_targets') || ''
+    panelName: readModalField(interaction, 'panel_name', 'Support tickets') || 'Support tickets',
+    panelHeader: readModalField(interaction, 'panel_header', 'Open a support ticket') || 'Open a support ticket',
+    panelMessage: readModalField(interaction, 'panel_message', 'Need help? Use the panel below and a staff member will respond soon.') || 'Need help? Use the panel below and a staff member will respond soon.',
+    panelMessageAbove: readModalField(interaction, 'panel_message_above', '') || '',
+    supportRoleId: parseDiscordId(readModalField(interaction, 'staff_role_id')) || null,
+    categoryId: parseDiscordId(readModalField(interaction, 'ticket_category_id')) || null,
+    panelChannelId: parseDiscordId(readModalField(interaction, 'panel_channel_id')) || null,
+    transcriptChannelId: parseDiscordId(readModalField(interaction, 'transcript_channel_id')) || null,
+    ticketOpeningMessage: readModalField(interaction, 'ticket_opening_message', 'Your ticket has been created. A staff member will respond soon.') || 'Your ticket has been created. A staff member will respond soon.',
+    pingTargets: readModalField(interaction, 'ping_targets', '') || ''
   };
 
   return page1;

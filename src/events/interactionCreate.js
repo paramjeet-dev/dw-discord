@@ -22,6 +22,23 @@ const {
 
 const ticketSetupDrafts = new Map();
 
+function readModalField(interaction, customId, fallback = '') {
+  try {
+    const value = interaction.fields.getTextInputValue(customId);
+    return value === undefined || value === null ? fallback : value;
+  } catch (error) {
+    const message = error?.message || '';
+    const isMissingModalField = error?.code === 'ModalSubmitInteractionFieldNotFound'
+      || message.includes('Required field with custom id')
+      || message.includes('custom id');
+
+    if (isMissingModalField) {
+      return fallback;
+    }
+    throw error;
+  }
+}
+
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
@@ -189,11 +206,11 @@ module.exports = {
           if (page === 2) {
             const existingDraft = ticketSetupDrafts.get(draftKey) || {};
             const pageTwoDraft = {
-              panelMessageAbove: interaction.fields.getTextInputValue('panel_message_above') || '',
-              categoryId: interaction.fields.getTextInputValue('ticket_category_id') || existingDraft.categoryId || null,
-              transcriptChannelId: interaction.fields.getTextInputValue('transcript_channel_id') || existingDraft.transcriptChannelId || null,
-              ticketOpeningMessage: interaction.fields.getTextInputValue('ticket_opening_message') || 'Your ticket has been created. A staff member will respond soon.',
-              pingTargets: interaction.fields.getTextInputValue('ping_targets') || '',
+              panelMessageAbove: readModalField(interaction, 'panel_message_above', '') || '',
+              categoryId: readModalField(interaction, 'ticket_category_id', existingDraft.categoryId || '') || existingDraft.categoryId || null,
+              transcriptChannelId: readModalField(interaction, 'transcript_channel_id', existingDraft.transcriptChannelId || '') || existingDraft.transcriptChannelId || null,
+              ticketOpeningMessage: readModalField(interaction, 'ticket_opening_message', 'Your ticket has been created. A staff member will respond soon.') || 'Your ticket has been created. A staff member will respond soon.',
+              pingTargets: readModalField(interaction, 'ping_targets', '') || '',
             };
 
             ticketSetupDrafts.set(draftKey, { ...existingDraft, ...pageTwoDraft });
@@ -206,8 +223,8 @@ module.exports = {
           const pageOneDraft = ticketSetupDrafts.get(draftKey) || {};
           const finalDraft = {
             ...pageOneDraft,
-            panelType: interaction.fields.getTextInputValue('panel_type') || 'buttons',
-            panelOptions: interaction.fields.getTextInputValue('panel_options') || 'general,billing,bug,other',
+            panelType: readModalField(interaction, 'panel_type', 'buttons') || 'buttons',
+            panelOptions: readModalField(interaction, 'panel_options', 'general,billing,bug,other') || 'general,billing,bug,other',
           };
 
           const panelOptions = String(finalDraft.panelOptions || 'general,billing,bug,other')

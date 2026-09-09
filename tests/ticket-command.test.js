@@ -43,4 +43,22 @@ const normalizedCategories = ticketHelper.normalizeTicketCategories(new Map([
 assert.deepEqual(normalizedCategories, { general: 'general-category', billing: 'billing-category' });
 assert.equal(ticketHelper.resolveTicketCategory({ ticketCategories: new Map([['general', 'general-category'], ['billing', 'billing-category']]) }, 'billing'), 'billing-category');
 
+const pageOneInteraction = {
+  fields: {
+    getTextInputValue(customId) {
+      if (customId === 'panel_name') return 'Support tickets';
+      if (customId === 'panel_header') return 'Open a support ticket';
+      if (customId === 'panel_message') return 'Need help?';
+      if (customId === 'staff_role_id') return '123456789012345678';
+      if (customId === 'panel_channel_id') return '987654321098765432';
+
+      const error = new Error(`Required field with custom id "${customId}" not found.`);
+      error.code = 'ModalSubmitInteractionFieldNotFound';
+      throw error;
+    }
+  }
+};
+assert.doesNotThrow(() => ticketHelper.parseTicketSetupDraft(pageOneInteraction), 'Page 1 setup parsing should ignore fields from later pages.');
+assert.equal(ticketHelper.parseTicketSetupDraft(pageOneInteraction).supportRoleId, '123456789012345678');
+
 console.log('Ticket command test passed');
