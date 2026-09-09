@@ -200,6 +200,49 @@ function buildTicketFormResponse(ticket, guild) {
     );
 }
 
+async function getTicketStatsForGuild(guildId) {
+  if (!guildId) return { total: 0, open: 0, closed: 0, claimed: 0 };
+
+  const tickets = await Ticket.find({ guildId }).lean();
+  return {
+    total: tickets.length,
+    open: tickets.filter((ticket) => ticket.status === 'open').length,
+    closed: tickets.filter((ticket) => ticket.status === 'closed').length,
+    claimed: tickets.filter((ticket) => ticket.claimedBy).length
+  };
+}
+
+function buildTicketListEmbed(guild, tickets = []) {
+  const openTickets = (tickets || []).filter((ticket) => ticket.status === 'open');
+  const claimed = openTickets.filter((ticket) => ticket.claimedBy).length;
+  const total = tickets.length;
+  const open = openTickets.length;
+  const closed = (tickets || []).filter((ticket) => ticket.status === 'closed').length;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x5865F2)
+    .setTitle('Ticket overview')
+    .setDescription(`There are ${open} open ticket(s) in this server.`)
+    .addFields(
+      { name: 'Total tickets', value: String(total || 0), inline: true },
+      { name: 'Open', value: String(open || 0), inline: true },
+      { name: 'Closed', value: String(closed || 0), inline: true },
+      { name: 'Claimed', value: String(claimed || 0), inline: true }
+    );
+
+  if (openTickets.length) {
+    const lines = openTickets.slice(0, 10).map((ticket) => {
+      const status = ticket.claimedBy ? 'Claimed' : 'Unclaimed';
+      return `• <#${ticket.channelId}> • <@${ticket.openerId}> • ${status}`;
+    });
+    embed.addFields({ name: 'Open tickets', value: lines.join('\n') || 'None', inline: false });
+  } else {
+    embed.addFields({ name: 'Open tickets', value: 'No open tickets right now.', inline: false });
+  }
+
+  return embed;
+}
+
 async function buildTicketTranscript(ticket, guild, ticketChannel) {
   const channel = ticketChannel || (guild?.channels?.cache?.get(ticket.channelId) ?? await guild?.channels?.fetch(ticket.channelId).catch(() => null));
   const lines = [
@@ -707,6 +750,8 @@ module.exports = {
   renameTicket,
   getTicketInfo,
   getTicketsForGuild,
+  getTicketStatsForGuild,
+  buildTicketListEmbed,
   canManageTicket,
   TICKET_BUTTONS
 };

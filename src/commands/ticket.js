@@ -13,6 +13,7 @@ const {
   ensureTicketSettings,
   getTicketInfo,
   getTicketsForGuild,
+  buildTicketListEmbed,
   canManageTicket
 } = require('../utils/ticketHelper');
 
@@ -152,11 +153,7 @@ module.exports = {
 
         case 'list': {
           const tickets = await getTicketsForGuild(interaction.guildId);
-          const openTickets = tickets.filter((ticket) => ticket.status === 'open');
-          const embed = new EmbedBuilder()
-            .setColor(0x5865F2)
-            .setTitle('Open tickets')
-            .setDescription(openTickets.length > 0 ? openTickets.map((ticket) => `<#${ticket.channelId}> • Opener: <@${ticket.openerId}>`).slice(0, 10).join('\n') : 'No open tickets right now.');
+          const embed = buildTicketListEmbed(interaction.guild, tickets);
           return interaction.editReply({ embeds: [embed] });
         }
 
