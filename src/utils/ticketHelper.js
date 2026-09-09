@@ -523,16 +523,27 @@ async function createPanelMessage(interaction, channelId) {
     throw new Error('The panel channel must be a valid text channel.');
   }
 
+  const settings = await getTicketSettings(interaction.guildId) || await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId });
+  const panelTitle = settings?.panelName || 'Support tickets';
+  const panelHeader = settings?.panelHeader || 'Open a support ticket';
+  const panelMessage = settings?.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.';
+  const panelMessageAbove = settings?.panelMessageAbove || '';
+  const guildIcon = interaction.guild.iconURL({ dynamic: true, size: 256 }) || null;
+
   const embed = new EmbedBuilder()
     .setColor(0x5865F2)
-    .setTitle('Open a support ticket')
-    .setDescription('Need help? Use the button below to open a ticket and a staff member will respond soon.')
+    .setTitle(panelTitle)
+    .setThumbnail(guildIcon)
+    .setDescription(panelMessageAbove || panelHeader)
+    .setFooter({
+      text: `${interaction.guild.name} • ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`,
+      iconURL: guildIcon || undefined
+    })
     .addFields(
-      { name: 'How it works', value: 'Create a ticket, explain the issue, and wait for a response from support staff.', inline: false },
+      { name: 'How it works', value: panelMessage, inline: false },
       { name: 'Support policy', value: 'Please keep your ticket topic focused and include as much context as possible.', inline: false }
     );
 
-  const settings = await getTicketSettings(interaction.guildId) || await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId });
   const existingPanelMessageId = settings?.panelMessageId;
   const existingPanelChannelId = settings?.panelChannelId;
 

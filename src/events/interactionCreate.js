@@ -17,10 +17,12 @@ const {
   ensureTicketSettings,
   getTicketSettings,
   addUserToTicket,
-  removeUserFromTicket
+  removeUserFromTicket,
+  createPanelMessage
 } = require('../utils/ticketHelper');
 
 const ticketSetupDrafts = new Map();
+const ticketSetupReviewMessages = new Map();
 
 function readModalField(interaction, customId, fallback = '') {
   try {
@@ -88,7 +90,14 @@ function formatTicketSetupValue(value, fallback = 'Not set') {
   return String(value);
 }
 
-function buildTicketSetupConfirmationEmbed(draft = {}) {
+function buildGuildEmbedFooter(guild, extraText = '') {
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const name = guild?.name || 'Server';
+  const iconURL = guild?.iconURL?.({ dynamic: true, size: 64 }) || undefined;
+  return { text: `${name}${extraText ? ` • ${extraText}` : ''} • ${time}`, iconURL };
+}
+
+function buildTicketSetupConfirmationEmbed(guild, draft = {}) {
   const panelChannel = draft.panelChannelId ? `<#${draft.panelChannelId}>` : 'Not set';
   const supportRole = draft.supportRoleId ? `<@&${draft.supportRoleId}>` : 'Not set';
   const transcriptChannel = draft.transcriptChannelId ? `<#${draft.transcriptChannelId}>` : 'Not set';
@@ -97,7 +106,9 @@ function buildTicketSetupConfirmationEmbed(draft = {}) {
   return new EmbedBuilder()
     .setColor(0x5865F2)
     .setTitle('Confirm ticket panel settings')
+    .setThumbnail(guild?.iconURL?.({ dynamic: true, size: 256 }) || null)
     .setDescription('Review the values below, then click Save to publish the panel in the selected channel.')
+    .setFooter(buildGuildEmbedFooter(guild, 'Ticket setup'))
     .addFields(
       { name: 'Panel name', value: formatTicketSetupValue(draft.panelName), inline: true },
       { name: 'Panel header', value: formatTicketSetupValue(draft.panelHeader), inline: true },
@@ -308,14 +319,18 @@ module.exports = {
             throw new Error('No panel channel was selected. Please choose a panel channel on page 1.');
           }
 
-          await require('../utils/ticketHelper').createPanelMessage(interaction, panelChannelId);
+          await createPanelMessage(interaction, panelChannelId);
           ticketSetupDrafts.delete(draftKey);
 
-          return {
-            title: 'Ticket panel published',
-            description: `The ticket panel was sent to <#${panelChannelId}>.`,
-            color: 0x57F287
-          };
+          const successEmbed = new EmbedBuilder()
+            .setColor(0x57F287)
+            .setTitle('Ticket panel published')
+            .setDescription(`The ticket panel was sent to <#${panelChannelId}>.`)
+            .setThumbnail(interaction.guild?.iconURL?.({ dynamic: true, size: 256 }) || null)
+            .setFooter(buildGuildEmbedFooter(interaction.guild, 'Ticket panel'));
+
+          await interaction.update({ embeds: [successEmbed], components: [] }).catch(() => null);
+          return null;
         }
       };
 
@@ -363,10 +378,14 @@ module.exports = {
             .setTitle('Ticket setup: continue')
             .setDescription('Your first page is saved. Use the button below to continue to the next setup page.');
 
-          return interaction.editReply({
+          const reply = await interaction.editReply({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ nextId: 'ticket-setup-open-page-2', nextLabel: 'Next page' })]
-          });
+          }).catch(() => null);
+          if (reply && reply.id && reply.channelId) {
+            ticketSetupReviewMessages.delete(draftKey);
+          }
+          return;
         }
 
         if (interaction.customId.startsWith('ticket-setup-page-2')) {
@@ -387,10 +406,14 @@ module.exports = {
             .setTitle('Ticket setup: final page')
             .setDescription('Your second page is saved. Use the button below to open the final setup page.');
 
-          return interaction.editReply({
+          const reply = await interaction.editReply({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-1', backLabel: 'Back', nextId: 'ticket-setup-open-page-3', nextLabel: 'Final page' })]
-          });
+          }).catch(() => null);
+          if (reply && reply.id && reply.channelId) {
+            ticketSetupReviewMessages.delete(draftKey);
+          }
+          return;
         }
 
         if (interaction.customId.startsWith('ticket-setup-page-3')) {
@@ -404,10 +427,27 @@ module.exports = {
 
           ticketSetupDrafts.set(draftKey, finalDraft);
 
-          return interaction.editReply({
-            embeds: [buildTicketSetupConfirmationEmbed(finalDraft)],
+          const updatePayload = {
+            embeds: [buildTicketSetupConfirmationEmbed(interaction.guild, finalDraft)],
             components: buildTicketSetupReviewButtons()
-          });
+          };
+
+          const reviewMessageRef = ticketSetupReviewMessages.get(draftKey);
+          if (reviewMessageRef) {
+            const channel = interaction.client.channels.cache.get(reviewMessageRef.channelId) || await interaction.client.channels.fetch(reviewMessageRef.channelId).catch(() => null);
+            const message = channel?.messages?.cache?.get(reviewMessageRef.messageId) || await channel?.messages?.fetch(reviewMessageRef.messageId).catch(() => null);
+            if (message) {
+              await message.edit(updatePayload).catch(() => null);
+              await interaction.editReply({ content: 'Review updated.' }).catch(() => null);
+              return;
+            }
+          }
+
+          const reply = await interaction.editReply(updatePayload).catch(() => null);
+          if (reply && reply.id && reply.channelId) {
+            ticketSetupReviewMessages.set(draftKey, { channelId: reply.channelId, messageId: reply.id });
+          }
+          return;
         }
 
         if (interaction.customId.startsWith('ticket-user-modal-')) {
