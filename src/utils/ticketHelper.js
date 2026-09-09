@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 const Ticket = require('../models/ticket');
 const TicketSettings = require('../models/ticketSettings');
 
@@ -91,20 +91,53 @@ function buildTicketActionRow(ticket) {
   return row;
 }
 
-function buildTicketPanelRow() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId('open-ticket')
-      .setLabel('Open a ticket')
-      .setStyle(ButtonStyle.Primary)
-      .setEmoji('🎫')
-  );
+function buildTicketCategorySelect(settings = {}) {
+  const categories = settings.ticketCategories && Object.keys(settings.ticketCategories).length
+    ? settings.ticketCategories
+    : { general: 'General', billing: 'Billing', bug: 'Bug', other: 'Other' };
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('ticket-category-select')
+    .setPlaceholder('Select a ticket type')
+    .setMinValues(1)
+    .setMaxValues(1);
+
+  for (const [key, label] of Object.entries(categories)) {
+    const normalizedLabel = typeof label === 'string' ? label : key;
+    menu.addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(normalizedLabel)
+        .setValue(key)
+        .setDescription(`Open a ${normalizedLabel.toLowerCase()} ticket`)
+    );
+  }
+
+  return menu;
 }
 
-function buildTicketModal() {
+function buildTicketPanelRow(settings = {}) {
+  const rows = [
+    new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId('open-ticket')
+        .setLabel('Open a ticket')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('🎫')
+    )
+  ];
+
+  const selectMenu = buildTicketCategorySelect(settings);
+  if (selectMenu.options.length) {
+    rows.push(new ActionRowBuilder().addComponents(selectMenu));
+  }
+
+  return rows;
+}
+
+function buildTicketModal(type = 'general') {
   const modal = new ModalBuilder()
-    .setCustomId('ticket-form')
-    .setTitle('Open a support ticket');
+    .setCustomId(`ticket-form-${String(type || 'general').toLowerCase()}`)
+    .setTitle(`Open a ${String(type || 'general').toLowerCase()} ticket`);
 
   const titleInput = new TextInputBuilder()
     .setCustomId('ticket-title')
@@ -210,10 +243,11 @@ async function createPanelMessage(interaction, channelId) {
       { name: 'Support policy', value: 'Please keep your ticket topic focused and include as much context as possible.', inline: false }
     );
 
-  const message = await targetChannel.send({ embeds: [embed], components: [buildTicketPanelRow()] });
+  const settings = await getTicketSettings(interaction.guildId) || await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId });
+  const message = await targetChannel.send({ embeds: [embed], components: buildTicketPanelRow(settings) });
 
-  const settings = await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId, panelChannelId: targetChannel.id, panelMessageId: message.id });
-  return { message, settings };
+  const updatedSettings = await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId, panelChannelId: targetChannel.id, panelMessageId: message.id });
+  return { message, settings: updatedSettings };
 }
 
 async function setTicketPermissionsForMembers(channel, members, allow = true) {
@@ -307,18 +341,19 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
   return { channel, ticket: ticketDoc.toObject(), initialMessage };
 }
 
-async function openTicketButton(interaction) {
+async function openTicketButton(interaction, type = 'general') {
   const settings = await getTicketSettings(interaction.guildId);
   if (!settings || settings.enabled === false) {
     throw new Error('The ticket system is not enabled for this server.');
   }
 
-  const modal = buildTicketModal();
-  if (interaction.isButton()) {
+  const selectedType = String(type || 'general').toLowerCase();
+  const modal = buildTicketModal(selectedType);
+  if (interaction.isButton() || interaction.isStringSelectMenu()) {
     await interaction.showModal(modal).catch(() => null);
   }
 
-  return { interaction, modal };
+  return { interaction, modal, type: selectedType };
 }
 
 async function submitTicketForm(interaction) {
@@ -328,6 +363,7 @@ async function submitTicketForm(interaction) {
 
   const title = interaction.fields.getTextInputValue('ticket-title');
   const details = interaction.fields.getTextInputValue('ticket-details');
+  const type = interaction.customId.startsWith('ticket-form-') ? interaction.customId.replace('ticket-form-', '') : 'general';
 
   const settings = await getTicketSettings(interaction.guildId);
   if (!settings || settings.enabled === false) {
@@ -338,7 +374,7 @@ async function submitTicketForm(interaction) {
     interaction,
     reason: details,
     summary: title,
-    type: 'general'
+    type
   });
 
   return { ticket, embed: buildTicketFormResponse(ticket.ticket, interaction.guild) };
@@ -601,6 +637,7 @@ module.exports = {
   buildTicketPanelRow,
   buildTicketModal,
   buildTicketFormResponse,
+  buildTicketCategorySelect,
   buildTicketTranscript,
   createPanelMessage,
   sendTicketStatusMessage,

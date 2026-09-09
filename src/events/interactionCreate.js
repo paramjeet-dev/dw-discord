@@ -41,8 +41,8 @@ module.exports = {
     if (interaction.isButton()) {
       const ticketHandlers = {
         'open-ticket': async () => {
-          const ticket = await openTicketButton(interaction);
-          return { title: 'Ticket created', description: `Ticket created in ${ticket.channel.toString()}`, color: 0x57F287 };
+          const ticket = await openTicketButton(interaction, 'general');
+          return { title: 'Ticket created', description: `Ticket form opened for ${ticket.type}.`, color: 0x57F287 };
         },
         'ticket-close': async () => {
           if (!(await canManageTicket(interaction, null))) {
@@ -112,6 +112,16 @@ module.exports = {
     }
 
     if (interaction.isStringSelectMenu()) {
+      if (interaction.customId === 'ticket-category-select') {
+        try {
+          await openTicketButton(interaction, interaction.values[0] || 'general');
+          return;
+        } catch (error) {
+          console.error('Ticket category selection error:', error);
+          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket form.')], ephemeral: true });
+        }
+      }
+
       try {
         if (!interaction.deferred && !interaction.replied) {
           await interaction.deferReply({ ephemeral: true }).catch(() => null);
