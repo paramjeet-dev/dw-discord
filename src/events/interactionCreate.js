@@ -349,6 +349,10 @@ module.exports = {
 
     if (interaction.isModalSubmit()) {
       try {
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.deferReply().catch(() => null);
+        }
+
         if (interaction.customId.startsWith('ticket-setup-page-1')) {
           const draftKey = `${interaction.guildId}:${interaction.user.id}`;
           const pageOneDraft = parseTicketSetupDraft(interaction);
@@ -359,7 +363,7 @@ module.exports = {
             .setTitle('Ticket setup: continue')
             .setDescription('Your first page is saved. Use the button below to continue to the next setup page.');
 
-          return interaction.reply({
+          return interaction.editReply({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ nextId: 'ticket-setup-open-page-2', nextLabel: 'Next page' })]
           });
@@ -383,7 +387,7 @@ module.exports = {
             .setTitle('Ticket setup: final page')
             .setDescription('Your second page is saved. Use the button below to open the final setup page.');
 
-          return interaction.reply({
+          return interaction.editReply({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-1', backLabel: 'Back', nextId: 'ticket-setup-open-page-3', nextLabel: 'Final page' })]
           });
@@ -400,7 +404,7 @@ module.exports = {
 
           ticketSetupDrafts.set(draftKey, finalDraft);
 
-          return interaction.reply({
+          return interaction.editReply({
             embeds: [buildTicketSetupConfirmationEmbed(finalDraft)],
             components: buildTicketSetupReviewButtons()
           });
@@ -413,16 +417,16 @@ module.exports = {
           const userId = match ? match[1] : null;
 
           if (!userId) {
-            return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please provide a valid user ID or mention.')] });
+            return interaction.editReply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please provide a valid user ID or mention.')] });
           }
 
           if (action === 'add') {
             await addUserToTicket(interaction, { id: userId });
-            return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] });
+            return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] });
           }
 
           await removeUserFromTicket(interaction, { id: userId });
-          return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] });
+          return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] });
         }
 
         if (!interaction.deferred && !interaction.replied) {
