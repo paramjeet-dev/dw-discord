@@ -103,6 +103,10 @@ module.exports = {
         .addChannelOption((option) => option.setName('category_other').setDescription('Category for other tickets.').setRequired(false))
         .addRoleOption((option) => option.setName('support_role').setDescription('Role used for staff support members.').setRequired(false))
         .addStringOption((option) => option.setName('prefix').setDescription('Ticket channel prefix, for example: ticket or support.').setRequired(false))
+
+        .addStringOption((option) => option.setName('default_reason').setDescription('Default ticket reason used when a user opens a ticket.').setRequired(false))
+        .addBooleanOption((option) => option.setName('allow_user_open_tickets').setDescription('Allow regular members to open tickets.').setRequired(false))
+        .addChannelOption((option) => option.setName('panel_channel').setDescription('Channel where the ticket panel should be displayed.').setRequired(false))
         .addChannelOption((option) => option.setName('transcript_channel').setDescription('Channel used for ticket transcripts/logs.').setRequired(false))
     )
     .addSubcommand((subcommand) =>
@@ -267,6 +271,9 @@ module.exports = {
           const categoryOther = interaction.options.getChannel('category_other');
           const supportRole = interaction.options.getRole('support_role');
           const prefix = interaction.options.getString('prefix');
+          const defaultReason = interaction.options.getString('default_reason');
+          const allowUserOpenTickets = interaction.options.getBoolean('allow_user_open_tickets');
+          const panelChannel = interaction.options.getChannel('panel_channel');
           const transcriptChannel = interaction.options.getChannel('transcript_channel');
 
           const ticketCategories = Object.fromEntries(
@@ -284,6 +291,9 @@ module.exports = {
             ticketCategories,
             supportRoleId: supportRole ? supportRole.id : null,
             ticketPrefix: prefix || 'ticket',
+            defaultReason: defaultReason || 'Customer support request.',
+            allowUserOpenTickets: allowUserOpenTickets !== null ? allowUserOpenTickets : true,
+            panelChannelId: panelChannel ? panelChannel.id : null,
             transcriptChannelId: transcriptChannel ? transcriptChannel.id : null,
             enabled: true
           });
@@ -299,6 +309,9 @@ module.exports = {
               { name: 'Other', value: config.ticketCategories?.other ? `<#${config.ticketCategories.other}>` : 'None', inline: true },
               { name: 'Support role', value: config.supportRoleId ? `<@&${config.supportRoleId}>` : 'None', inline: true },
               { name: 'Prefix', value: config.ticketPrefix || 'ticket', inline: true },
+              { name: 'Default reason', value: config.defaultReason || 'Customer support request.', inline: true },
+              { name: 'User open tickets', value: config.allowUserOpenTickets === false ? 'Disabled' : 'Enabled', inline: true },
+              { name: 'Panel channel', value: config.panelChannelId ? `<#${config.panelChannelId}>` : 'None', inline: true },
               { name: 'Transcript channel', value: config.transcriptChannelId ? `<#${config.transcriptChannelId}>` : 'None', inline: true }
             );
 

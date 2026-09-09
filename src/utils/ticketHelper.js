@@ -267,9 +267,28 @@ async function createPanelMessage(interaction, channelId) {
     );
 
   const settings = await getTicketSettings(interaction.guildId) || await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId });
-  const message = await targetChannel.send({ embeds: [embed], components: buildTicketPanelRow(settings) });
+  const existingPanelMessageId = settings?.panelMessageId;
+  const existingPanelChannelId = settings?.panelChannelId;
 
-  const updatedSettings = await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId, panelChannelId: targetChannel.id, panelMessageId: message.id });
+  let message;
+  if (existingPanelMessageId && existingPanelChannelId === targetChannel.id) {
+    const existingMessage = targetChannel.messages.cache.get(existingPanelMessageId)
+      ?? await targetChannel.messages.fetch(existingPanelMessageId).catch(() => null);
+
+    if (existingMessage) {
+      message = await existingMessage.edit({ embeds: [embed], components: buildTicketPanelRow(settings) });
+    }
+  }
+
+  if (!message) {
+    message = await targetChannel.send({ embeds: [embed], components: buildTicketPanelRow(settings) });
+  }
+
+  const updatedSettings = await ensureTicketSettings(interaction.guildId, {
+    guildId: interaction.guildId,
+    panelChannelId: targetChannel.id,
+    panelMessageId: message.id
+  });
   return { message, settings: updatedSettings };
 }
 
@@ -300,16 +319,27 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
 
   const settings = await getTicketSettings(interaction.guildId) || await ensureTicketSettings(interaction.guildId, {
     guildId: interaction.guildId,
-    ticketPrefix: 'ticket'
+    ticketPrefix: 'ticket',
+    defaultReason: 'Customer support request.',
+    allowUserOpenTickets: true
   });
 
   if (!settings || settings.enabled === false) {
     throw new Error('The ticket system is not enabled for this server. Run /ticket setup first.');
   }
 
+  const isStaffMember = interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)
+    || (!!settings.supportRoleId && interaction.member?.roles?.cache?.has(settings.supportRoleId));
+
+  if (settings.allowUserOpenTickets === false && !isStaffMember) {
+    throw new Error('This server has disabled user-opened tickets. Please contact a staff member.');
+  }
+
   const supportRoleId = settings.supportRoleId || null;
   const ticketPrefix = settings.ticketPrefix || 'ticket';
   const ticketType = type || 'general';
+  const defaultReason = settings.defaultReason || 'Customer support request.';
+  const resolvedReason = (typeof reason === 'string' && reason.trim()) ? reason : defaultReason;
   const categoryId = resolveTicketCategory(settings, ticketType);
   const ticketName = `${ticketPrefix}-${toSafeChannelName(interaction.user.username)}-${String(Date.now()).slice(-4)}`;
 
@@ -346,7 +376,7 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
     openerId: interaction.user.id,
     createdBy: interaction.user.id,
     status: 'open',
-    reason: reason || 'No reason provided.',
+    reason: resolvedReason,
     summary: summary || (ticketType === 'general' ? 'General support request.' : `${ticketType} support request.`),
     participants: [interaction.user.id]
   });

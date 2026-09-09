@@ -13,6 +13,11 @@ for (const name of ['create', 'close', 'reopen', 'claim', 'unclaim', 'add', 'rem
   assert.ok(subcommandNames.includes(name), `Missing subcommand: ${name}`);
 }
 
+const setupOptions = payload.options.find((option) => option.name === 'setup')?.options?.map((option) => option.name) || [];
+for (const name of ['default_reason', 'allow_user_open_tickets', 'panel_channel']) {
+  assert.ok(setupOptions.includes(name), `Missing setup option: ${name}`);
+}
+
 assert.equal(typeof ticketHelper.buildTicketModal, 'function', 'Ticket modal builder should exist');
 assert.equal(typeof ticketHelper.buildTicketFormResponse, 'function', 'Ticket form response helper should exist');
 assert.equal(typeof ticketHelper.resolveTicketCategory, 'function', 'Ticket category resolver should exist');
