@@ -30,6 +30,18 @@ module.exports = {
         .setDescription('Open a new support ticket.')
         .addStringOption((option) => option.setName('reason').setDescription('Why are you opening this ticket?').setRequired(false))
         .addStringOption((option) => option.setName('summary').setDescription('A short summary for the ticket.').setRequired(false))
+        .addStringOption((option) =>
+          option
+            .setName('type')
+            .setDescription('Select the ticket category.')
+            .setRequired(false)
+            .addChoices(
+              { name: 'General', value: 'general' },
+              { name: 'Billing', value: 'billing' },
+              { name: 'Bug', value: 'bug' },
+              { name: 'Other', value: 'other' }
+            )
+        )
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -109,8 +121,9 @@ module.exports = {
         case 'create': {
           const reason = interaction.options.getString('reason') || 'No reason provided.';
           const summary = interaction.options.getString('summary') || 'No summary provided.';
+          const type = interaction.options.getString('type') || 'general';
 
-          const result = await createTicket({ interaction, reason, summary, type: 'general' });
+          const result = await createTicket({ interaction, reason, summary, type });
           return interaction.editReply({ content: `Ticket created in ${result.channel.toString()}` });
         }
 

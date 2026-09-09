@@ -11,6 +11,11 @@ const ticketSettingsSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  ticketCategories: {
+    type: Map,
+    of: String,
+    default: {}
+  },
   supportRoleId: {
     type: String,
     default: null

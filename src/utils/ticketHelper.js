@@ -24,6 +24,13 @@ async function getTicketSettings(guildId) {
   return TicketSettings.findOne({ guildId }).lean();
 }
 
+function resolveTicketCategory(settings, type = 'general') {
+  const safeType = String(type || 'general').toLowerCase();
+  const categories = settings?.ticketCategories || {};
+  const mappedCategoryId = categories[safeType] || categories[`${safeType}Id`] || null;
+  return mappedCategoryId || settings?.categoryId || null;
+}
+
 async function getTicketByChannel(guildId, channelId) {
   if (!guildId || !channelId) return null;
   return Ticket.findOne({ guildId, channelId }).lean();
@@ -206,10 +213,10 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
     throw new Error('The ticket system is not enabled for this server. Run /ticket setup first.');
   }
 
-  const categoryId = settings.categoryId || null;
   const supportRoleId = settings.supportRoleId || null;
   const ticketPrefix = settings.ticketPrefix || 'ticket';
   const ticketType = type || 'general';
+  const categoryId = resolveTicketCategory(settings, ticketType);
   const ticketName = `${ticketPrefix}-${toSafeChannelName(interaction.user.username)}-${String(Date.now()).slice(-4)}`;
 
   const category = categoryId ? interaction.guild.channels.cache.get(categoryId) ?? await interaction.guild.channels.fetch(categoryId).catch(() => null) : null;
@@ -246,7 +253,7 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
     createdBy: interaction.user.id,
     status: 'open',
     reason: reason || 'No reason provided.',
-    summary: summary || type === 'general' ? 'General support request.' : `${ticketType} support request.`,
+    summary: summary || (ticketType === 'general' ? 'General support request.' : `${ticketType} support request.`),
     participants: [interaction.user.id]
   });
 
@@ -540,6 +547,7 @@ async function canManageTicket(interaction, ticket) {
 
 module.exports = {
   getTicketSettings,
+  resolveTicketCategory,
   getTicketByChannel,
   ensureTicketSettings,
   buildTicketEmbed,
