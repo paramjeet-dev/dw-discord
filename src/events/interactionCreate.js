@@ -297,9 +297,7 @@ module.exports = {
     }
 
     if (interaction.isModalSubmit()) {
-
       try {
-        interaction.deferReply({ ephemeral: false }).catch(() => null);
         if (interaction.customId.startsWith('ticket-setup-page-1')) {
           const draftKey = `${interaction.guildId}:${interaction.user.id}`;
           const pageOneDraft = parseTicketSetupDraft(interaction);
@@ -310,10 +308,10 @@ module.exports = {
             .setTitle('Ticket setup: continue')
             .setDescription('Your first page is saved. Use the button below to continue to the next setup page.');
 
-          return interaction.followUp({
+          return interaction.reply({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ nextId: 'ticket-setup-open-page-2', nextLabel: 'Next page' })],
-            ephemeral: false
+            ephemeral: true
           });
         }
 
@@ -335,10 +333,10 @@ module.exports = {
             .setTitle('Ticket setup: final page')
             .setDescription('Your second page is saved. Use the button below to open the final setup page.');
 
-          return interaction.followUp({
+          return interaction.reply({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-1', backLabel: 'Back', nextId: 'ticket-setup-open-page-3', nextLabel: 'Final page' })],
-            ephemeral: false
+            ephemeral: true
           });
         }
 
@@ -358,10 +356,10 @@ module.exports = {
             .setTitle('Ticket setup: save')
             .setDescription('Your final setup values are ready to be saved.');
 
-          return interaction.followUp({
+          return interaction.reply({
             embeds: [embed],
             components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-2', backLabel: 'Back', nextId: 'ticket-setup-save', nextLabel: 'Save settings' })],
-            ephemeral: false
+            ephemeral: true
           });
         }
 
@@ -412,7 +410,7 @@ module.exports = {
         if (!interaction.deferred && !interaction.replied) {
           await interaction.deferReply({ ephemeral: true }).catch(() => null);
         }
-      } catch (err) { }
+      } catch (err) {}
 
       return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket selection menus are not enabled in this version yet.')], ephemeral: true });
     }
