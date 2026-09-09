@@ -527,14 +527,14 @@ async function createPanelMessage(interaction, channelId) {
   const panelTitle = settings?.panelName || 'Support tickets';
   const panelHeader = settings?.panelHeader || 'Open a support ticket';
   const panelMessage = settings?.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.';
-  const panelMessageAbove = settings?.panelMessageAbove || '';
+  const panelMessageAbove = (settings?.panelMessageAbove || '').trim();
   const guildIcon = interaction.guild.iconURL({ dynamic: true, size: 256 }) || null;
 
   const embed = new EmbedBuilder()
     .setColor(0x5865F2)
     .setTitle(panelTitle)
     .setThumbnail(guildIcon)
-    .setDescription(panelMessageAbove || panelHeader)
+    .setDescription(panelHeader || 'Open a support ticket')
     .setFooter({
       text: `${interaction.guild.name} • ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}`,
       iconURL: guildIcon || undefined
@@ -543,6 +543,12 @@ async function createPanelMessage(interaction, channelId) {
       { name: 'How it works', value: panelMessage, inline: false },
       { name: 'Support policy', value: 'Please keep your ticket topic focused and include as much context as possible.', inline: false }
     );
+
+  const panelPayload = {
+    content: panelMessageAbove || undefined,
+    embeds: [embed],
+    components: buildTicketPanelRow(settings)
+  };
 
   const existingPanelMessageId = settings?.panelMessageId;
   const existingPanelChannelId = settings?.panelChannelId;
@@ -553,12 +559,12 @@ async function createPanelMessage(interaction, channelId) {
       ?? await targetChannel.messages.fetch(existingPanelMessageId).catch(() => null);
 
     if (existingMessage) {
-      message = await existingMessage.edit({ embeds: [embed], components: buildTicketPanelRow(settings) });
+      message = await existingMessage.edit(panelPayload);
     }
   }
 
   if (!message) {
-    message = await targetChannel.send({ embeds: [embed], components: buildTicketPanelRow(settings) });
+    message = await targetChannel.send(panelPayload);
   }
 
   const updatedSettings = await ensureTicketSettings(interaction.guildId, {
