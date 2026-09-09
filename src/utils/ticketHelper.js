@@ -24,9 +24,31 @@ async function getTicketSettings(guildId) {
   return TicketSettings.findOne({ guildId }).lean();
 }
 
+function normalizeTicketCategories(categories) {
+  if (!categories) return {};
+
+  if (categories instanceof Map) {
+    return Object.fromEntries(
+      [...categories.entries()]
+        .filter(([key, value]) => key && value != null)
+        .map(([key, value]) => [String(key).toLowerCase(), String(value)])
+    );
+  }
+
+  if (typeof categories === 'object') {
+    return Object.fromEntries(
+      Object.entries(categories)
+        .filter(([key, value]) => key && value != null)
+        .map(([key, value]) => [String(key).toLowerCase(), String(value)])
+    );
+  }
+
+  return {};
+}
+
 function resolveTicketCategory(settings, type = 'general') {
   const safeType = String(type || 'general').toLowerCase();
-  const categories = settings?.ticketCategories || {};
+  const categories = normalizeTicketCategories(settings?.ticketCategories || {});
   const mappedCategoryId = categories[safeType] || categories[`${safeType}Id`] || null;
   return mappedCategoryId || settings?.categoryId || null;
 }
@@ -92,8 +114,9 @@ function buildTicketActionRow(ticket) {
 }
 
 function buildTicketCategorySelect(settings = {}) {
-  const categories = settings.ticketCategories && Object.keys(settings.ticketCategories).length
-    ? settings.ticketCategories
+  const categories = normalizeTicketCategories(settings.ticketCategories || {});
+  const effectiveCategories = Object.keys(categories).length
+    ? categories
     : { general: 'General', billing: 'Billing', bug: 'Bug', other: 'Other' };
 
   const menu = new StringSelectMenuBuilder()
@@ -102,7 +125,7 @@ function buildTicketCategorySelect(settings = {}) {
     .setMinValues(1)
     .setMaxValues(1);
 
-  for (const [key, label] of Object.entries(categories)) {
+  for (const [key, label] of Object.entries(effectiveCategories)) {
     const normalizedLabel = typeof label === 'string' ? label : key;
     menu.addOptions(
       new StringSelectMenuOptionBuilder()
@@ -629,6 +652,7 @@ async function canManageTicket(interaction, ticket) {
 
 module.exports = {
   getTicketSettings,
+  normalizeTicketCategories,
   resolveTicketCategory,
   getTicketByChannel,
   ensureTicketSettings,

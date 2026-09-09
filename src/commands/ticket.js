@@ -96,7 +96,11 @@ module.exports = {
       subcommand
         .setName('setup')
         .setDescription('Configure the ticketing module for this server.')
-        .addChannelOption((option) => option.setName('category').setDescription('Category used for ticket channels.').setRequired(false))
+        .addChannelOption((option) => option.setName('category').setDescription('Default category used for ticket channels.').setRequired(false))
+        .addChannelOption((option) => option.setName('category_general').setDescription('Category for general tickets.').setRequired(false))
+        .addChannelOption((option) => option.setName('category_billing').setDescription('Category for billing tickets.').setRequired(false))
+        .addChannelOption((option) => option.setName('category_bug').setDescription('Category for bug tickets.').setRequired(false))
+        .addChannelOption((option) => option.setName('category_other').setDescription('Category for other tickets.').setRequired(false))
         .addRoleOption((option) => option.setName('support_role').setDescription('Role used for staff support members.').setRequired(false))
         .addStringOption((option) => option.setName('prefix').setDescription('Ticket channel prefix, for example: ticket or support.').setRequired(false))
         .addChannelOption((option) => option.setName('transcript_channel').setDescription('Channel used for ticket transcripts/logs.').setRequired(false))
@@ -257,13 +261,27 @@ module.exports = {
           }
 
           const category = interaction.options.getChannel('category');
+          const categoryGeneral = interaction.options.getChannel('category_general');
+          const categoryBilling = interaction.options.getChannel('category_billing');
+          const categoryBug = interaction.options.getChannel('category_bug');
+          const categoryOther = interaction.options.getChannel('category_other');
           const supportRole = interaction.options.getRole('support_role');
           const prefix = interaction.options.getString('prefix');
           const transcriptChannel = interaction.options.getChannel('transcript_channel');
 
+          const ticketCategories = Object.fromEntries(
+            Object.entries({
+              general: categoryGeneral ? categoryGeneral.id : null,
+              billing: categoryBilling ? categoryBilling.id : null,
+              bug: categoryBug ? categoryBug.id : null,
+              other: categoryOther ? categoryOther.id : null
+            }).filter(([, value]) => value)
+          );
+
           const config = await ensureTicketSettings(interaction.guildId, {
             guildId: interaction.guildId,
             categoryId: category ? category.id : null,
+            ticketCategories,
             supportRoleId: supportRole ? supportRole.id : null,
             ticketPrefix: prefix || 'ticket',
             transcriptChannelId: transcriptChannel ? transcriptChannel.id : null,
@@ -274,7 +292,11 @@ module.exports = {
             .setColor(0x57F287)
             .setTitle('Ticket system configured')
             .addFields(
-              { name: 'Category', value: config.categoryId ? `<#${config.categoryId}>` : 'None', inline: true },
+              { name: 'Default category', value: config.categoryId ? `<#${config.categoryId}>` : 'None', inline: true },
+              { name: 'General', value: config.ticketCategories?.general ? `<#${config.ticketCategories.general}>` : 'None', inline: true },
+              { name: 'Billing', value: config.ticketCategories?.billing ? `<#${config.ticketCategories.billing}>` : 'None', inline: true },
+              { name: 'Bug', value: config.ticketCategories?.bug ? `<#${config.ticketCategories.bug}>` : 'None', inline: true },
+              { name: 'Other', value: config.ticketCategories?.other ? `<#${config.ticketCategories.other}>` : 'None', inline: true },
               { name: 'Support role', value: config.supportRoleId ? `<@&${config.supportRoleId}>` : 'None', inline: true },
               { name: 'Prefix', value: config.ticketPrefix || 'ticket', inline: true },
               { name: 'Transcript channel', value: config.transcriptChannelId ? `<#${config.transcriptChannelId}>` : 'None', inline: true }

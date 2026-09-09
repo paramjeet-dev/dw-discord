@@ -18,5 +18,13 @@ assert.equal(typeof ticketHelper.buildTicketFormResponse, 'function', 'Ticket fo
 assert.equal(typeof ticketHelper.resolveTicketCategory, 'function', 'Ticket category resolver should exist');
 assert.equal(typeof ticketHelper.buildTicketTranscript, 'function', 'Ticket transcript builder should exist');
 assert.equal(typeof ticketHelper.buildTicketCategorySelect, 'function', 'Ticket category select builder should exist');
+assert.equal(typeof ticketHelper.normalizeTicketCategories, 'function', 'Ticket category normalizer should exist');
+
+const normalizedCategories = ticketHelper.normalizeTicketCategories(new Map([
+  ['general', 'general-category'],
+  ['billing', 'billing-category']
+]));
+assert.deepEqual(normalizedCategories, { general: 'general-category', billing: 'billing-category' });
+assert.equal(ticketHelper.resolveTicketCategory({ ticketCategories: new Map([['general', 'general-category'], ['billing', 'billing-category']]) }, 'billing'), 'billing-category');
 
 console.log('Ticket command test passed');
