@@ -261,18 +261,20 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
     .setCustomId(`ticket-setup-page-${page}`)
     .setTitle(page === 1 ? 'Ticket setup - Page 1' : 'Ticket setup - Page 2');
 
+  const panelType = defaults.panelType || 'buttons';
+  const panelOptions = Array.isArray(defaults.panelOptions)
+    ? defaults.panelOptions.join(',')
+    : typeof defaults.panelOptions === 'string'
+      ? defaults.panelOptions
+      : 'general,billing,bug,other';
+
   if (page === 1) {
     const fields = [
       ['panel_name', 'Panel name', defaults.panelName || 'Support tickets'],
       ['panel_header', 'Panel header', defaults.panelHeader || 'Open a support ticket'],
       ['panel_message', 'Panel message (embed)', defaults.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.'],
-      ['panel_message_above', 'Panel message above embed', defaults.panelMessageAbove || ''],
       ['staff_role_id', 'Staff role ID', defaults.supportRoleId || ''],
-      ['ticket_category_id', 'Opening category ID', defaults.categoryId || ''],
-      ['panel_channel_id', 'Panel channel ID', defaults.panelChannelId || ''],
-      ['transcript_channel_id', 'Transcript channel ID', defaults.transcriptChannelId || ''],
-      ['ticket_opening_message', 'Ticket opening message', defaults.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.'],
-      ['ping_targets', 'Ping roles/users (comma-separated IDs)', defaults.pingTargets || '']
+      ['panel_channel_id', 'Panel channel ID', defaults.panelChannelId || '']
     ];
 
     for (const [customId, label, value] of fields) {
@@ -291,8 +293,26 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
     return modal;
   }
 
-  const panelType = defaults.panelType || 'buttons';
-  const panelOptions = defaults.panelOptions || 'general,billing,bug,other';
+  const fields = [
+    ['panel_message_above', 'Panel message above embed', defaults.panelMessageAbove || ''],
+    ['ticket_category_id', 'Opening category ID', defaults.categoryId || ''],
+    ['transcript_channel_id', 'Transcript channel ID', defaults.transcriptChannelId || ''],
+    ['ticket_opening_message', 'Ticket opening message', defaults.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.'],
+    ['ping_targets', 'Ping roles/users (comma-separated IDs)', defaults.pingTargets || '']
+  ];
+
+  for (const [customId, label, value] of fields) {
+    modal.addComponents(
+      new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId(customId)
+          .setLabel(label)
+          .setStyle(TextInputStyle.Short)
+          .setRequired(false)
+          .setValue(value)
+      )
+    );
+  }
 
   modal.addComponents(
     new ActionRowBuilder().addComponents(
@@ -302,7 +322,10 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
         .setValue(panelType)
-    ),
+    )
+  );
+
+  modal.addComponents(
     new ActionRowBuilder().addComponents(
       new TextInputBuilder()
         .setCustomId('panel_options')

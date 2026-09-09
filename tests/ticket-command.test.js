@@ -16,6 +16,9 @@ for (const name of ['create', 'close', 'reopen', 'claim', 'unclaim', 'add', 'rem
 const setupOptions = payload.options.find((option) => option.name === 'setup')?.options?.map((option) => option.name) || [];
 assert.deepEqual(setupOptions, [], 'Ticket setup should not expose old slash-command options; it should open a modal instead.');
 
+const setupPageOne = ticketHelper.buildTicketSetupModal(1, {});
+assert.ok(setupPageOne.components.length <= 5, `Ticket setup page 1 should keep to Discord modal limits; got ${setupPageOne.components.length} rows.`);
+
 assert.equal(typeof ticketHelper.buildTicketModal, 'function', 'Ticket modal builder should exist');
 assert.equal(typeof ticketHelper.buildTicketFormResponse, 'function', 'Ticket form response helper should exist');
 assert.equal(typeof ticketHelper.resolveTicketCategory, 'function', 'Ticket category resolver should exist');
