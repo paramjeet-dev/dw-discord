@@ -144,6 +144,43 @@ function buildTicketFormResponse(ticket, guild) {
     );
 }
 
+async function buildTicketTranscript(ticket, guild, ticketChannel) {
+  const channel = ticketChannel || (guild?.channels?.cache?.get(ticket.channelId) ?? await guild?.channels?.fetch(ticket.channelId).catch(() => null));
+  const lines = [
+    '=== Ticket Transcript ===',
+    `Ticket ID: ${ticket.channelId}`,
+    `Opened by: <@${ticket.openerId}>`,
+    `Status: ${ticket.status || 'open'}`,
+    `Claimed by: ${ticket.claimedBy ? `<@${ticket.claimedBy}>` : 'Unclaimed'}`,
+    `Reason: ${ticket.reason || 'No reason provided.'}`,
+    `Summary: ${ticket.summary || 'No summary provided.'}`,
+    '',
+    '--- Messages ---',
+    ''
+  ];
+
+  if (!channel || !channel.isTextBased()) {
+    lines.push('No messages available for this ticket.');
+    return lines.join('\n');
+  }
+
+  const messages = Array.from((await channel.messages.fetch({ limit: 100 })).values())
+    .sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+  if (!messages.length) {
+    lines.push('No messages in this ticket.');
+    return lines.join('\n');
+  }
+
+  for (const message of messages) {
+    const text = (message.content || '').replace(/\r\n/g, '\n').trim();
+    const body = text || '[Attachment or embed]';
+    lines.push(`[${new Date(message.createdTimestamp).toISOString()}] ${message.author.tag}: ${body}`);
+  }
+
+  return lines.join('\n');
+}
+
 async function sendTicketStatusMessage(channel, ticket, guild) {
   if (!channel || !channel.isTextBased()) return;
 
@@ -351,6 +388,15 @@ async function closeTicket(interaction, options = {}) {
     });
   }
 
+  const settings = await getTicketSettings(interaction.guildId);
+  const transcriptTarget = settings?.transcriptChannelId ? interaction.guild.channels.cache.get(settings.transcriptChannelId) ?? await interaction.guild.channels.fetch(settings.transcriptChannelId).catch(() => null) : null;
+  if (transcriptTarget && transcriptTarget.isTextBased()) {
+    const transcriptBody = await buildTicketTranscript(ticket.toObject(), interaction.guild, channel);
+    await transcriptTarget.send({
+      content: `Ticket transcript for <#${targetChannelId}>\n\n\`\`\`\n${transcriptBody.slice(0, 1800)}\n\`\`\``
+    }).catch(() => null);
+  }
+
   return ticket.toObject();
 }
 
@@ -555,6 +601,7 @@ module.exports = {
   buildTicketPanelRow,
   buildTicketModal,
   buildTicketFormResponse,
+  buildTicketTranscript,
   createPanelMessage,
   sendTicketStatusMessage,
   createTicket,

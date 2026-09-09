@@ -16,5 +16,6 @@ for (const name of ['create', 'close', 'reopen', 'claim', 'unclaim', 'add', 'rem
 assert.equal(typeof ticketHelper.buildTicketModal, 'function', 'Ticket modal builder should exist');
 assert.equal(typeof ticketHelper.buildTicketFormResponse, 'function', 'Ticket form response helper should exist');
 assert.equal(typeof ticketHelper.resolveTicketCategory, 'function', 'Ticket category resolver should exist');
+assert.equal(typeof ticketHelper.buildTicketTranscript, 'function', 'Ticket transcript builder should exist');
 
 console.log('Ticket command test passed');
