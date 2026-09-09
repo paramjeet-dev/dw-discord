@@ -271,12 +271,12 @@ module.exports = {
       const handler = ticketHandlers[interaction.customId];
       if (handler) {
         try {
-          if (!interaction.deferred && !interaction.replied) {
-            await interaction.deferReply({ ephemeral: true }).catch(() => null);
-          }
-
           const result = await handler();
           if (!result) return;
+
+          if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferReply().catch(() => null);
+          }
 
           if (result.replyType === 'confirm') {
             return interaction.editReply({ embeds: result.embeds, components: result.components || [] });
@@ -310,8 +310,7 @@ module.exports = {
 
           return interaction.reply({
             embeds: [embed],
-            components: [buildTicketSetupButtonRow({ nextId: 'ticket-setup-open-page-2', nextLabel: 'Next page' })],
-            ephemeral: true
+            components: [buildTicketSetupButtonRow({ nextId: 'ticket-setup-open-page-2', nextLabel: 'Next page' })]
           });
         }
 
@@ -335,8 +334,7 @@ module.exports = {
 
           return interaction.reply({
             embeds: [embed],
-            components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-1', backLabel: 'Back', nextId: 'ticket-setup-open-page-3', nextLabel: 'Final page' })],
-            ephemeral: true
+            components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-1', backLabel: 'Back', nextId: 'ticket-setup-open-page-3', nextLabel: 'Final page' })]
           });
         }
 
@@ -358,8 +356,7 @@ module.exports = {
 
           return interaction.reply({
             embeds: [embed],
-            components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-2', backLabel: 'Back', nextId: 'ticket-setup-save', nextLabel: 'Save settings' })],
-            ephemeral: true
+            components: [buildTicketSetupButtonRow({ backId: 'ticket-setup-open-page-2', backLabel: 'Back', nextId: 'ticket-setup-save', nextLabel: 'Save settings' })]
           });
         }
 
@@ -370,20 +367,20 @@ module.exports = {
           const userId = match ? match[1] : null;
 
           if (!userId) {
-            return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please provide a valid user ID or mention.')], ephemeral: true });
+            return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please provide a valid user ID or mention.')] });
           }
 
           if (action === 'add') {
             await addUserToTicket(interaction, { id: userId });
-            return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)], ephemeral: true });
+            return interaction.reply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] });
           }
 
           await removeUserFromTicket(interaction, { id: userId });
-          return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)], ephemeral: true });
+          return interaction.reply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] });
         }
 
         if (!interaction.deferred && !interaction.replied) {
-          await interaction.deferReply({ ephemeral: true }).catch(() => null);
+          await interaction.deferReply().catch(() => null);
         }
 
         const result = await submitTicketForm(interaction);
@@ -402,17 +399,17 @@ module.exports = {
           return;
         } catch (error) {
           console.error('Ticket category selection error:', error);
-          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket form.')], ephemeral: true });
+          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket form.')] });
         }
       }
 
       try {
         if (!interaction.deferred && !interaction.replied) {
-          await interaction.deferReply({ ephemeral: true }).catch(() => null);
+          await interaction.deferReply().catch(() => null);
         }
       } catch (err) {}
 
-      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket selection menus are not enabled in this version yet.')], ephemeral: true });
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket selection menus are not enabled in this version yet.')] });
     }
   }
 };
