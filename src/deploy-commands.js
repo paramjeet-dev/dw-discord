@@ -32,7 +32,7 @@ const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
     const data = await rest.put(
       Routes.applicationCommands(process.env.CLIENT_ID),
-      { body: [] }
+      { body: commands }
     );
 
     console.log(`Successfully reloaded ${data.length} application (/) commands.`);
