@@ -6,6 +6,7 @@ const {
   claimTicket,
   unclaimTicket,
   openTicketButton,
+  submitTicketForm,
   canManageTicket
 } = require('../utils/ticketHelper');
 
@@ -95,14 +96,29 @@ module.exports = {
       }
     }
 
-    if (interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+    if (interaction.isModalSubmit()) {
+      try {
+        if (!interaction.deferred && !interaction.replied) {
+          await interaction.deferReply({ ephemeral: true }).catch(() => null);
+        }
+
+        const result = await submitTicketForm(interaction);
+        return interaction.editReply({ embeds: [result.embed] });
+      } catch (error) {
+        console.error('Ticket form error:', error);
+        const embed = buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to submit this ticket form.');
+        return interaction.editReply({ embeds: [embed] });
+      }
+    }
+
+    if (interaction.isStringSelectMenu()) {
       try {
         if (!interaction.deferred && !interaction.replied) {
           await interaction.deferReply({ ephemeral: true }).catch(() => null);
         }
       } catch (err) {}
 
-      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket forms are not enabled in this version yet.')], ephemeral: true });
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket selection menus are not enabled in this version yet.')], ephemeral: true });
     }
   }
 };

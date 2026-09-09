@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, PermissionsBitField } = require('discord.js');
 const Ticket = require('../models/ticket');
 const TicketSettings = require('../models/ticketSettings');
 
@@ -92,6 +92,49 @@ function buildTicketPanelRow() {
       .setStyle(ButtonStyle.Primary)
       .setEmoji('🎫')
   );
+}
+
+function buildTicketModal() {
+  const modal = new ModalBuilder()
+    .setCustomId('ticket-form')
+    .setTitle('Open a support ticket');
+
+  const titleInput = new TextInputBuilder()
+    .setCustomId('ticket-title')
+    .setLabel('Ticket title')
+    .setStyle(TextInputStyle.Short)
+    .setPlaceholder('Example: Account access issue')
+    .setRequired(true)
+    .setMaxLength(80);
+
+  const detailsInput = new TextInputBuilder()
+    .setCustomId('ticket-details')
+    .setLabel('Describe your issue')
+    .setStyle(TextInputStyle.Paragraph)
+    .setPlaceholder('Tell the support team what is happening')
+    .setRequired(true)
+    .setMinLength(10)
+    .setMaxLength(2000);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(titleInput),
+    new ActionRowBuilder().addComponents(detailsInput)
+  );
+
+  return modal;
+}
+
+function buildTicketFormResponse(ticket, guild) {
+  const channelName = guild?.channels?.cache?.get(ticket.channelId)?.name || 'ticket';
+  return new EmbedBuilder()
+    .setColor(0x57F287)
+    .setTitle('Ticket created')
+    .setDescription(`Your ticket has been created in <#${ticket.channelId}>`)
+    .addFields(
+      { name: 'Channel', value: `#${channelName}`, inline: true },
+      { name: 'Status', value: 'Open', inline: true },
+      { name: 'Summary', value: ticket.summary || 'No summary provided.', inline: false }
+    );
 }
 
 async function sendTicketStatusMessage(channel, ticket, guild) {
@@ -226,9 +269,35 @@ async function openTicketButton(interaction) {
     throw new Error('The ticket system is not enabled for this server.');
   }
 
-  const reason = `Opened through support panel by ${interaction.user.tag}`;
-  const ticket = await createTicket({ interaction, reason, summary: 'Support request from panel', type: 'general' });
-  return ticket;
+  const modal = buildTicketModal();
+  if (interaction.isButton()) {
+    await interaction.showModal(modal).catch(() => null);
+  }
+
+  return { interaction, modal };
+}
+
+async function submitTicketForm(interaction) {
+  if (!interaction.isModalSubmit()) {
+    throw new Error('This interaction is not a ticket form submission.');
+  }
+
+  const title = interaction.fields.getTextInputValue('ticket-title');
+  const details = interaction.fields.getTextInputValue('ticket-details');
+
+  const settings = await getTicketSettings(interaction.guildId);
+  if (!settings || settings.enabled === false) {
+    throw new Error('The ticket system is not enabled for this server.');
+  }
+
+  const ticket = await createTicket({
+    interaction,
+    reason: details,
+    summary: title,
+    type: 'general'
+  });
+
+  return { ticket, embed: buildTicketFormResponse(ticket.ticket, interaction.guild) };
 }
 
 async function closeTicket(interaction, options = {}) {
@@ -476,10 +545,13 @@ module.exports = {
   buildTicketEmbed,
   buildTicketActionRow,
   buildTicketPanelRow,
+  buildTicketModal,
+  buildTicketFormResponse,
   createPanelMessage,
   sendTicketStatusMessage,
   createTicket,
   openTicketButton,
+  submitTicketForm,
   closeTicket,
   reopenTicket,
   claimTicket,
