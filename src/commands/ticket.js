@@ -11,9 +11,11 @@ const {
   removeUserFromTicket,
   renameTicket,
   ensureTicketSettings,
+  getTicketSettings,
   getTicketInfo,
   getTicketsForGuild,
   buildTicketListEmbed,
+  buildTicketSetupModal,
   canManageTicket
 } = require('../utils/ticketHelper');
 
@@ -97,18 +99,6 @@ module.exports = {
       subcommand
         .setName('setup')
         .setDescription('Configure the ticketing module for this server.')
-        .addChannelOption((option) => option.setName('category').setDescription('Default category used for ticket channels.').setRequired(false))
-        .addChannelOption((option) => option.setName('category_general').setDescription('Category for general tickets.').setRequired(false))
-        .addChannelOption((option) => option.setName('category_billing').setDescription('Category for billing tickets.').setRequired(false))
-        .addChannelOption((option) => option.setName('category_bug').setDescription('Category for bug tickets.').setRequired(false))
-        .addChannelOption((option) => option.setName('category_other').setDescription('Category for other tickets.').setRequired(false))
-        .addRoleOption((option) => option.setName('support_role').setDescription('Role used for staff support members.').setRequired(false))
-        .addStringOption((option) => option.setName('prefix').setDescription('Ticket channel prefix, for example: ticket or support.').setRequired(false))
-
-        .addStringOption((option) => option.setName('default_reason').setDescription('Default ticket reason used when a user opens a ticket.').setRequired(false))
-        .addBooleanOption((option) => option.setName('allow_user_open_tickets').setDescription('Allow regular members to open tickets.').setRequired(false))
-        .addChannelOption((option) => option.setName('panel_channel').setDescription('Channel where the ticket panel should be displayed.').setRequired(false))
-        .addChannelOption((option) => option.setName('transcript_channel').setDescription('Channel used for ticket transcripts/logs.').setRequired(false))
     )
     .addSubcommand((subcommand) =>
       subcommand
@@ -117,13 +107,23 @@ module.exports = {
     ),
 
   async execute(interaction) {
-    await interaction.deferReply({ ephemeral: true }).catch(() => null);
-
     if (!interaction.inGuild()) {
-      return interaction.editReply({ content: 'This command can only be used inside a server.', ephemeral: true });
+      return interaction.reply({ content: 'This command can only be used inside a server.', ephemeral: true }).catch(() => null);
     }
 
     const subcommand = interaction.options.getSubcommand();
+
+    if (subcommand === 'setup') {
+      if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to configure the ticket system.')], ephemeral: true }).catch(() => null);
+      }
+
+      const settings = await getTicketSettings(interaction.guildId);
+      await interaction.showModal(buildTicketSetupModal(1, settings || {})).catch(() => null);
+      return;
+    }
+
+    await interaction.deferReply({ ephemeral: true }).catch(() => null);
 
     try {
       switch (subcommand) {
@@ -256,63 +256,7 @@ module.exports = {
         }
 
         case 'setup': {
-          if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-            const embed = buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to configure the ticket system.');
-            return interaction.editReply({ embeds: [embed] });
-          }
-
-          const category = interaction.options.getChannel('category');
-          const categoryGeneral = interaction.options.getChannel('category_general');
-          const categoryBilling = interaction.options.getChannel('category_billing');
-          const categoryBug = interaction.options.getChannel('category_bug');
-          const categoryOther = interaction.options.getChannel('category_other');
-          const supportRole = interaction.options.getRole('support_role');
-          const prefix = interaction.options.getString('prefix');
-          const defaultReason = interaction.options.getString('default_reason');
-          const allowUserOpenTickets = interaction.options.getBoolean('allow_user_open_tickets');
-          const panelChannel = interaction.options.getChannel('panel_channel');
-          const transcriptChannel = interaction.options.getChannel('transcript_channel');
-
-          const ticketCategories = Object.fromEntries(
-            Object.entries({
-              general: categoryGeneral ? categoryGeneral.id : null,
-              billing: categoryBilling ? categoryBilling.id : null,
-              bug: categoryBug ? categoryBug.id : null,
-              other: categoryOther ? categoryOther.id : null
-            }).filter(([, value]) => value)
-          );
-
-          const config = await ensureTicketSettings(interaction.guildId, {
-            guildId: interaction.guildId,
-            categoryId: category ? category.id : null,
-            ticketCategories,
-            supportRoleId: supportRole ? supportRole.id : null,
-            ticketPrefix: prefix || 'ticket',
-            defaultReason: defaultReason || 'Customer support request.',
-            allowUserOpenTickets: allowUserOpenTickets !== null ? allowUserOpenTickets : true,
-            panelChannelId: panelChannel ? panelChannel.id : null,
-            transcriptChannelId: transcriptChannel ? transcriptChannel.id : null,
-            enabled: true
-          });
-
-          const summaryEmbed = new EmbedBuilder()
-            .setColor(0x57F287)
-            .setTitle('Ticket system configured')
-            .addFields(
-              { name: 'Default category', value: config.categoryId ? `<#${config.categoryId}>` : 'None', inline: true },
-              { name: 'General', value: config.ticketCategories?.general ? `<#${config.ticketCategories.general}>` : 'None', inline: true },
-              { name: 'Billing', value: config.ticketCategories?.billing ? `<#${config.ticketCategories.billing}>` : 'None', inline: true },
-              { name: 'Bug', value: config.ticketCategories?.bug ? `<#${config.ticketCategories.bug}>` : 'None', inline: true },
-              { name: 'Other', value: config.ticketCategories?.other ? `<#${config.ticketCategories.other}>` : 'None', inline: true },
-              { name: 'Support role', value: config.supportRoleId ? `<@&${config.supportRoleId}>` : 'None', inline: true },
-              { name: 'Prefix', value: config.ticketPrefix || 'ticket', inline: true },
-              { name: 'Default reason', value: config.defaultReason || 'Customer support request.', inline: true },
-              { name: 'User open tickets', value: config.allowUserOpenTickets === false ? 'Disabled' : 'Enabled', inline: true },
-              { name: 'Panel channel', value: config.panelChannelId ? `<#${config.panelChannelId}>` : 'None', inline: true },
-              { name: 'Transcript channel', value: config.transcriptChannelId ? `<#${config.transcriptChannelId}>` : 'None', inline: true }
-            );
-
-          return interaction.editReply({ embeds: [summaryEmbed] });
+          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x5865F2, 'The setup modal is opening.')] }).catch(() => null);
         }
 
         case 'info': {

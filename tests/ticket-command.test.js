@@ -14,9 +14,7 @@ for (const name of ['create', 'close', 'reopen', 'claim', 'unclaim', 'add', 'rem
 }
 
 const setupOptions = payload.options.find((option) => option.name === 'setup')?.options?.map((option) => option.name) || [];
-for (const name of ['default_reason', 'allow_user_open_tickets', 'panel_channel']) {
-  assert.ok(setupOptions.includes(name), `Missing setup option: ${name}`);
-}
+assert.deepEqual(setupOptions, [], 'Ticket setup should not expose old slash-command options; it should open a modal instead.');
 
 assert.equal(typeof ticketHelper.buildTicketModal, 'function', 'Ticket modal builder should exist');
 assert.equal(typeof ticketHelper.buildTicketFormResponse, 'function', 'Ticket form response helper should exist');
