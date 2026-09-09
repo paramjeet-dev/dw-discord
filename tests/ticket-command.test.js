@@ -28,6 +28,8 @@ assert.equal(typeof ticketHelper.buildTicketListEmbed, 'function', 'Ticket list 
 assert.equal(typeof ticketHelper.getTicketStatsForGuild, 'function', 'Ticket stats helper should exist');
 assert.equal(typeof ticketHelper.buildTicketUserModal, 'function', 'Ticket user modal should exist');
 assert.equal(typeof ticketHelper.buildTicketConfirmationRow, 'function', 'Ticket confirmation row should exist');
+assert.equal(typeof ticketHelper.buildTicketSetupModal, 'function', 'Ticket setup modal should exist');
+assert.equal(typeof ticketHelper.parseTicketSetupDraft, 'function', 'Ticket setup draft parser should exist');
 
 const normalizedCategories = ticketHelper.normalizeTicketCategories(new Map([
   ['general', 'general-category'],

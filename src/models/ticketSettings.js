@@ -20,6 +20,42 @@ const ticketSettingsSchema = new mongoose.Schema({
     type: String,
     default: null
   },
+  panelName: {
+    type: String,
+    default: 'Support tickets'
+  },
+  panelHeader: {
+    type: String,
+    default: 'Open a support ticket'
+  },
+  panelMessage: {
+    type: String,
+    default: 'Need help? Use the ticket panel below and a staff member will respond soon.'
+  },
+  panelMessageAbove: {
+    type: String,
+    default: ''
+  },
+  ticketOpeningMessage: {
+    type: String,
+    default: 'Your ticket has been created. A staff member will respond soon.'
+  },
+  panelType: {
+    type: String,
+    default: 'buttons'
+  },
+  panelOptions: {
+    type: [String],
+    default: ['general', 'billing', 'bug', 'other']
+  },
+  pingUserIds: {
+    type: [String],
+    default: []
+  },
+  pingRoleIds: {
+    type: [String],
+    default: []
+  },
   transcriptChannelId: {
     type: String,
     default: null

@@ -210,23 +210,127 @@ function buildTicketCategorySelect(settings = {}) {
   return menu;
 }
 
-function buildTicketPanelRow(settings = {}) {
-  const rows = [
-    new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setCustomId('open-ticket')
-        .setLabel('Open a ticket')
-        .setStyle(ButtonStyle.Primary)
-        .setEmoji('🎫')
-    )
-  ];
+function normalizePanelOptions(options) {
+  if (!options) return [];
+  if (Array.isArray(options)) return options.filter(Boolean).map(String);
+  if (typeof options === 'string') return options.split(',').map((item) => item.trim()).filter(Boolean);
+  if (options instanceof Map) return [...options.keys()].filter(Boolean).map(String);
+  if (typeof options === 'object') return Object.keys(options).filter(Boolean).map(String);
+  return [];
+}
 
-  const selectMenu = buildTicketCategorySelect(settings);
-  if (selectMenu.options.length) {
-    rows.push(new ActionRowBuilder().addComponents(selectMenu));
+function buildTicketPanelRow(settings = {}) {
+  const panelType = settings.panelType === 'select' ? 'select' : 'buttons';
+  const panelOptions = normalizePanelOptions(settings.panelOptions && settings.panelOptions.length ? settings.panelOptions : ['general', 'billing', 'bug', 'other']);
+
+  if (panelType === 'buttons') {
+    const buttonRow = new ActionRowBuilder();
+    for (const option of panelOptions) {
+      const label = String(option).charAt(0).toUpperCase() + String(option).slice(1);
+      buttonRow.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`ticket-open-${String(option).toLowerCase()}`)
+          .setLabel(label)
+          .setStyle(ButtonStyle.Primary)
+      );
+    }
+    return [buttonRow];
   }
 
-  return rows;
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId('ticket-category-select')
+    .setPlaceholder('Select a ticket type')
+    .setMinValues(1)
+    .setMaxValues(1);
+
+  for (const option of panelOptions) {
+    const label = String(option).charAt(0).toUpperCase() + String(option).slice(1);
+    menu.addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(label)
+        .setValue(String(option).toLowerCase())
+        .setDescription(`Open a ${label.toLowerCase()} ticket`)
+    );
+  }
+
+  return [new ActionRowBuilder().addComponents(menu)];
+}
+
+function buildTicketSetupModal(page = 1, defaults = {}) {
+  const modal = new ModalBuilder()
+    .setCustomId(`ticket-setup-page-${page}`)
+    .setTitle(page === 1 ? 'Ticket setup - Page 1' : 'Ticket setup - Page 2');
+
+  if (page === 1) {
+    const fields = [
+      ['panel_name', 'Panel name', defaults.panelName || 'Support tickets'],
+      ['panel_header', 'Panel header', defaults.panelHeader || 'Open a support ticket'],
+      ['panel_message', 'Panel message (embed)', defaults.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.'],
+      ['panel_message_above', 'Panel message above embed', defaults.panelMessageAbove || ''],
+      ['staff_role_id', 'Staff role ID', defaults.supportRoleId || ''],
+      ['ticket_category_id', 'Opening category ID', defaults.categoryId || ''],
+      ['panel_channel_id', 'Panel channel ID', defaults.panelChannelId || ''],
+      ['transcript_channel_id', 'Transcript channel ID', defaults.transcriptChannelId || ''],
+      ['ticket_opening_message', 'Ticket opening message', defaults.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.'],
+      ['ping_targets', 'Ping roles/users (comma-separated IDs)', defaults.pingTargets || '']
+    ];
+
+    for (const [customId, label, value] of fields) {
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId(customId)
+            .setLabel(label)
+            .setStyle(TextInputStyle.Short)
+            .setRequired(false)
+            .setValue(value)
+        )
+      );
+    }
+
+    return modal;
+  }
+
+  const panelType = defaults.panelType || 'buttons';
+  const panelOptions = defaults.panelOptions || 'general,billing,bug,other';
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('panel_type')
+        .setLabel('Panel type (buttons or select)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setValue(panelType)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId('panel_options')
+        .setLabel('Panel options (comma separated)')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setValue(panelOptions)
+    )
+  );
+
+  return modal;
+}
+
+function parseTicketSetupDraft(interaction) {
+  const page1 = {
+    panelName: interaction.fields.getTextInputValue('panel_name') || 'Support tickets',
+    panelHeader: interaction.fields.getTextInputValue('panel_header') || 'Open a support ticket',
+    panelMessage: interaction.fields.getTextInputValue('panel_message') || 'Need help? Use the panel below and a staff member will respond soon.',
+    panelMessageAbove: interaction.fields.getTextInputValue('panel_message_above') || '',
+    supportRoleId: interaction.fields.getTextInputValue('staff_role_id') || null,
+    categoryId: interaction.fields.getTextInputValue('ticket_category_id') || null,
+    panelChannelId: interaction.fields.getTextInputValue('panel_channel_id') || null,
+    transcriptChannelId: interaction.fields.getTextInputValue('transcript_channel_id') || null,
+    ticketOpeningMessage: interaction.fields.getTextInputValue('ticket_opening_message') || 'Your ticket has been created. A staff member will respond soon.',
+    pingTargets: interaction.fields.getTextInputValue('ping_targets') || ''
+  };
+
+  return page1;
 }
 
 function buildTicketModal(type = 'general') {
@@ -835,6 +939,9 @@ module.exports = {
   getTicketsForGuild,
   getTicketStatsForGuild,
   buildTicketListEmbed,
+  buildTicketSetupModal,
+  parseTicketSetupDraft,
+  normalizePanelOptions,
   canManageTicket,
   canManageTicketStaff,
   TICKET_BUTTONS
