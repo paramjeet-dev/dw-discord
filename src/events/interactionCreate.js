@@ -1,5 +1,12 @@
-const { Events, EmbedBuilder, PermissionsBitField } = require('discord.js');
+const { Events, EmbedBuilder } = require('discord.js');
 const { buildServerEmbed } = require('../utils/embedHelper');
+const {
+  closeTicket,
+  reopenTicket,
+  claimTicket,
+  unclaimTicket,
+  canManageTicket
+} = require('../utils/ticketHelper');
 
 module.exports = {
   name: Events.InteractionCreate,
@@ -29,15 +36,68 @@ module.exports = {
       return;
     }
 
-    // For all component/modal interactions, respond that ticketing is disabled
-    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+    if (interaction.isButton()) {
+      const ticketHandlers = {
+        'ticket-close': async () => {
+          if (!(await canManageTicket(interaction, null))) {
+            throw new Error('You do not have permission to close this ticket.');
+          }
+          const ticket = await closeTicket(interaction);
+          return { title: 'Ticket closed', description: `Ticket ${ticket.channelId} has been closed.`, color: 0x57F287 };
+        },
+        'ticket-reopen': async () => {
+          if (!(await canManageTicket(interaction, null))) {
+            throw new Error('You do not have permission to reopen this ticket.');
+          }
+          const ticket = await reopenTicket(interaction);
+          return { title: 'Ticket reopened', description: `Ticket ${ticket.channelId} has been reopened.`, color: 0x57F287 };
+        },
+        'ticket-claim': async () => {
+          if (!(await canManageTicket(interaction, null))) {
+            throw new Error('You do not have permission to claim this ticket.');
+          }
+          const ticket = await claimTicket(interaction);
+          return { title: 'Ticket claimed', description: `Ticket claimed by <@${ticket.claimedBy}>.`, color: 0x57F287 };
+        },
+        'ticket-unclaim': async () => {
+          if (!(await canManageTicket(interaction, null))) {
+            throw new Error('You do not have permission to unclaim this ticket.');
+          }
+          const ticket = await unclaimTicket(interaction);
+          return { title: 'Ticket unclaimed', description: `Ticket ${ticket.channelId} is now unclaimed.`, color: 0x5865F2 };
+        }
+      };
+
+      const handler = ticketHandlers[interaction.customId];
+      if (handler) {
+        try {
+          if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferReply({ ephemeral: true }).catch(() => null);
+          }
+
+          const result = await handler();
+          const embed = new EmbedBuilder()
+            .setColor(result.color)
+            .setTitle(result.title)
+            .setDescription(result.description);
+
+          return interaction.editReply({ embeds: [embed] });
+        } catch (error) {
+          console.error('Ticket button error:', error);
+          const embed = buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to process this ticket action.');
+          return interaction.editReply({ embeds: [embed] });
+        }
+      }
+    }
+
+    if (interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
       try {
         if (!interaction.deferred && !interaction.replied) {
           await interaction.deferReply({ ephemeral: true }).catch(() => null);
         }
       } catch (err) {}
 
-      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticketing module is currently disabled.')], ephemeral: true });
+      return interaction.followUp({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Ticket forms are not enabled in this version yet.')], ephemeral: true });
     }
   }
 };
