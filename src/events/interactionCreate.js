@@ -170,7 +170,7 @@ module.exports = {
       const ticketHandlers = {
         'open-ticket': async () => {
           const ticket = await openTicketButton(interaction, 'general');
-          return { title: 'Ticket created', description: `Ticket form opened for ${ticket.type}.`, color: 0x57F287 };
+          return { title: 'Ticket created', description: `Ticket form opened for ${ticket.type}.`, color: 0x57F287, ephemeral: true };
         },
         'ticket-close': async () => {
           if (!(await canManageTicket(interaction, null))) {
@@ -341,7 +341,7 @@ module.exports = {
           if (!result) return;
 
           if (!interaction.deferred && !interaction.replied) {
-            await interaction.deferReply().catch(() => null);
+            await interaction.deferReply({ ephemeral: !!result.ephemeral }).catch(() => null);
           }
 
           if (result.replyType === 'confirm') {
@@ -364,9 +364,6 @@ module.exports = {
 
     if (interaction.isModalSubmit()) {
       try {
-        if (!interaction.deferred && !interaction.replied) {
-          await interaction.deferReply().catch(() => null);
-        }
 
         if (interaction.customId.startsWith('ticket-setup-page-1')) {
           const draftKey = `${interaction.guildId}:${interaction.user.id}`;
@@ -377,6 +374,10 @@ module.exports = {
             .setColor(0x5865F2)
             .setTitle('Ticket setup: continue')
             .setDescription('Your first page is saved. Use the button below to continue to the next setup page.');
+
+          if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferReply().catch(() => null);
+          }
 
           const reply = await interaction.editReply({
             embeds: [embed],
@@ -405,6 +406,10 @@ module.exports = {
             .setColor(0x5865F2)
             .setTitle('Ticket setup: final page')
             .setDescription('Your second page is saved. Use the button below to open the final setup page.');
+
+          if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferReply().catch(() => null);
+          }
 
           const reply = await interaction.editReply({
             embeds: [embed],
@@ -443,6 +448,10 @@ module.exports = {
             }
           }
 
+          if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferReply().catch(() => null);
+          }
+
           const reply = await interaction.editReply(updatePayload).catch(() => null);
           if (reply && reply.id && reply.channelId) {
             ticketSetupReviewMessages.set(draftKey, { channelId: reply.channelId, messageId: reply.id });
@@ -455,6 +464,10 @@ module.exports = {
           const rawUser = interaction.fields.getTextInputValue('ticket-user-id').trim();
           const match = rawUser.match(/(\d{17,20})/);
           const userId = match ? match[1] : null;
+
+          if (!interaction.deferred && !interaction.replied) {
+            await interaction.deferReply().catch(() => null);
+          }
 
           if (!userId) {
             return interaction.editReply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please provide a valid user ID or mention.')] });
@@ -470,7 +483,7 @@ module.exports = {
         }
 
         if (!interaction.deferred && !interaction.replied) {
-          await interaction.deferReply().catch(() => null);
+          await interaction.deferReply({ ephemeral: true }).catch(() => null);
         }
 
         const result = await submitTicketForm(interaction);
