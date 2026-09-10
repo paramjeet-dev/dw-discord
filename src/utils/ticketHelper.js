@@ -904,7 +904,7 @@ async function addUserToTicket(interaction, user, options = {}) {
       ReadMessageHistory: true,
       AttachFiles: true,
       AddReactions: true
-    }).catch(() => null);
+    });
 
     await channel.send({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${user.id}> has been added to this ticket.`)] });
   }
@@ -935,7 +935,7 @@ async function removeUserFromTicket(interaction, user, options = {}) {
       ReadMessageHistory: false,
       AttachFiles: false,
       AddReactions: false
-    }).catch(() => null);
+    });
 
     await channel.send({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${user.id}> has been removed from this ticket.`)] });
   }

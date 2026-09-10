@@ -273,19 +273,16 @@ module.exports = {
           if (!(await canManageTicketStaff(interaction))) {
             throw new Error('You do not have permission to claim this ticket.');
           }
-          await interaction.deferReply({ ephemeral: true }).catch(() => null);
+          await interaction.deferUpdate().catch(() => null);
           const ticket = await claimTicket(interaction);
-          // replace the ephemeral thinking message with a short confirmation
-          await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('Ticket claimed').setDescription(`Ticket ${ticket.channelId} has been claimed.`)] }).catch(() => null);
           return null;
         },
         'ticket-unclaim': async () => {
           if (!(await canManageTicketStaff(interaction))) {
             throw new Error('You do not have permission to unclaim this ticket.');
           }
-          await interaction.deferReply({ ephemeral: true }).catch(() => null);
+          await interaction.deferUpdate().catch(() => null);
           const ticket = await unclaimTicket(interaction);
-          await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle('Ticket unclaimed').setDescription(`Ticket ${ticket.channelId} is now unclaimed.`)] }).catch(() => null);
           return null;
         },
         'ticket-users': async () => {
@@ -558,13 +555,13 @@ module.exports = {
           if (action === 'add') {
             await addUserToTicket(interaction, { id: userId });
             await clearTicketUserPrompt(interaction);
-            await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] }).catch(() => null);
+            await interaction.deleteReply().catch(() => null);
             return null;
           }
 
           await removeUserFromTicket(interaction, { id: userId });
           await clearTicketUserPrompt(interaction);
-          await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] }).catch(() => null);
+          await interaction.deleteReply().catch(() => null);
           return null;
         }
 
