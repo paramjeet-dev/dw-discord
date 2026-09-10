@@ -265,7 +265,6 @@ module.exports = {
           }
           await interaction.deferReply({ ephemeral: true }).catch(() => null);
           const ticket = await claimTicket(interaction);
-          await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('Ticket claimed').setDescription(`Ticket claimed by <@${ticket.claimedBy}>.`)] }).catch(() => null);
           return null;
         },
         'ticket-unclaim': async () => {
@@ -546,12 +545,12 @@ module.exports = {
           if (action === 'add') {
             await addUserToTicket(interaction, { id: userId });
             await clearTicketUserPrompt(interaction);
-            return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] });
+            // return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] });
           }
 
           await removeUserFromTicket(interaction, { id: userId });
           await clearTicketUserPrompt(interaction);
-          return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] });
+          // return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] });
         }
 
         if (!interaction.deferred && !interaction.replied) {
