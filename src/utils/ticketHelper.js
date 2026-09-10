@@ -88,9 +88,10 @@ function buildTicketEmbed(ticket, guild) {
   const status = ticket.status === 'closed' ? 'Closed' : ticket.status === 'open' ? 'Open' : 'Unknown';
   const claimedBy = ticket.claimedBy ? `<@${ticket.claimedBy}>` : 'Unclaimed';
   const channel = guild?.channels?.cache?.get(ticket.channelId) || null;
+  const guildIcon = guild?.iconURL?.({ dynamic: true, size: 256 }) || guild?.iconURL?.() || null;
   const participants = (ticket.participants || []).length ? ticket.participants.map((id) => `<@${id}>`).join(', ') : 'No extra participants';
 
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(ticket.status === 'closed' ? 0xED4245 : 0x5865F2)
     .setTitle(`Ticket ${channel ? channel.name : 'Details'}`)
     .setDescription(ticket.reason || 'No reason provided.')
@@ -102,6 +103,12 @@ function buildTicketEmbed(ticket, guild) {
       { name: 'Participants', value: participants, inline: false },
       { name: 'Summary', value: ticket.summary || 'No summary provided.', inline: false }
     );
+
+  if (guildIcon) {
+    embed.setThumbnail(guildIcon);
+  }
+
+  return embed;
 }
 
 function buildTicketConfirmationRow(action = 'close') {
@@ -620,7 +627,7 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
   const defaultReason = settings.defaultReason || 'Customer support request.';
   const resolvedReason = (typeof reason === 'string' && reason.trim()) ? reason : defaultReason;
   const categoryId = resolveTicketCategory(settings, ticketType);
-  const ticketName = `${ticketPrefix}-${toSafeChannelName(interaction.user.username)}-${String(Date.now()).slice(-4)}`;
+  const ticketName = `${toSafeChannelName(ticketType)}-${ticketPrefix}-${toSafeChannelName(interaction.user.username)}`;
 
   const category = categoryId ? interaction.guild.channels.cache.get(categoryId) ?? await interaction.guild.channels.fetch(categoryId).catch(() => null) : null;
   const permissionOverwrites = [
@@ -662,8 +669,20 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
 
   const embed = buildTicketEmbed(ticketDoc.toObject(), interaction.guild);
   const row = buildTicketActionRow(ticketDoc.toObject());
+  const mentionTargets = [
+    ...(Array.isArray(settings.pingUserIds) ? settings.pingUserIds : []),
+    ...(Array.isArray(settings.pingRoleIds) ? settings.pingRoleIds : [])
+  ]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean);
+
+  const mentions = [...new Set(mentionTargets)].map((id) => {
+    const role = interaction.guild.roles.cache.get(id);
+    return role ? `<@&${id}>` : `<@${id}>`;
+  });
 
   const initialMessage = await channel.send({
+    content: mentions.length ? mentions.join(' ') : undefined,
     embeds: [embed],
     components: [row]
   });
@@ -680,12 +699,14 @@ async function openTicketButton(interaction, type = 'general') {
   }
 
   const selectedType = String(type || 'general').toLowerCase();
-  const modal = buildTicketModal(selectedType);
-  if (interaction.isButton() || interaction.isStringSelectMenu()) {
-    await interaction.showModal(modal).catch(() => null);
-  }
+  const ticket = await createTicket({
+    interaction,
+    reason: settings.defaultReason || 'Customer support request.',
+    summary: `${selectedType} support request.`,
+    type: selectedType
+  });
 
-  return { interaction, modal, type: selectedType };
+  return { ...ticket, type: selectedType };
 }
 
 async function submitTicketForm(interaction) {

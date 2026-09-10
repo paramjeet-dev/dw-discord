@@ -85,6 +85,18 @@ function buildTicketSetupButtonRow({ nextId, nextLabel, backId, backLabel, saveL
   return row;
 }
 
+async function openTicketPanelInteraction(interaction, type = 'general') {
+  if (!interaction.deferred && !interaction.replied) {
+    await interaction.deferReply({ ephemeral: true }).catch(() => null);
+  }
+
+  const ticket = await openTicketButton(interaction, type);
+
+  return interaction.editReply({
+    embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('Ticket created').setDescription(`Ticket created in ${ticket.channel.toString()}.`)]
+  }).catch(() => null);
+}
+
 function formatTicketSetupValue(value, fallback = 'Not set') {
   if (value === undefined || value === null || value === '') return fallback;
   return String(value);
@@ -169,8 +181,8 @@ module.exports = {
     if (interaction.isButton()) {
       const ticketHandlers = {
         'open-ticket': async () => {
-          const ticket = await openTicketButton(interaction, 'general');
-          return { title: 'Ticket created', description: `Ticket form opened for ${ticket.type}.`, color: 0x57F287, ephemeral: true };
+          await openTicketPanelInteraction(interaction, 'general');
+          return null;
         },
         'ticket-close': async () => {
           if (!(await canManageTicket(interaction, null))) {
@@ -335,16 +347,16 @@ module.exports = {
       };
 
 
-        if (interaction.customId.startsWith('ticket-open-')) {
-          const type = interaction.customId.replace('ticket-open-', '') || 'general';
-          try {
-            await openTicketButton(interaction, type);
-            return;
-          } catch (error) {
-            console.error('Ticket panel button error:', error);
-            return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket form.')], ephemeral: true }).catch(() => null);
-          }
+      if (interaction.customId.startsWith('ticket-open-')) {
+        const type = interaction.customId.replace('ticket-open-', '') || 'general';
+        try {
+          await openTicketPanelInteraction(interaction, type);
+          return;
+        } catch (error) {
+          console.error('Ticket panel button error:', error);
+          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket.')], ephemeral: true }).catch(() => null);
         }
+      }
       const handler = ticketHandlers[interaction.customId];
       if (handler) {
         try {
@@ -509,7 +521,7 @@ module.exports = {
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === 'ticket-category-select') {
         try {
-          await openTicketButton(interaction, interaction.values[0] || 'general');
+          await openTicketPanelInteraction(interaction, interaction.values[0] || 'general');
           return;
         } catch (error) {
           console.error('Ticket category selection error:', error);
