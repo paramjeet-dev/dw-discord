@@ -334,6 +334,17 @@ module.exports = {
         }
       };
 
+
+        if (interaction.customId.startsWith('ticket-open-')) {
+          const type = interaction.customId.replace('ticket-open-', '') || 'general';
+          try {
+            await openTicketButton(interaction, type);
+            return;
+          } catch (error) {
+            console.error('Ticket panel button error:', error);
+            return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket form.')], ephemeral: true }).catch(() => null);
+          }
+        }
       const handler = ticketHandlers[interaction.customId];
       if (handler) {
         try {
