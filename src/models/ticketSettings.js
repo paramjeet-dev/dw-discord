@@ -38,7 +38,7 @@ const ticketSettingsSchema = new mongoose.Schema({
   },
   ticketOpeningMessage: {
     type: String,
-    default: 'Your ticket has been created. A staff member will respond soon.'
+    default: ''
   },
   panelType: {
     type: String,

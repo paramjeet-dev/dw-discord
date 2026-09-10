@@ -23,6 +23,7 @@ const {
 
 const ticketSetupDrafts = new Map();
 const ticketSetupReviewMessages = new Map();
+const ticketUserPromptMessages = new Map();
 
 function readModalField(interaction, customId, fallback = '') {
   try {
@@ -95,6 +96,23 @@ async function openTicketPanelInteraction(interaction, type = 'general') {
   return interaction.editReply({
     embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('Ticket created').setDescription(`Ticket created in ${ticket.channel.toString()}.`)]
   }).catch(() => null);
+}
+
+function getTicketUserPromptKey(interaction) {
+  return `${interaction.guildId}:${interaction.channelId}`;
+}
+
+async function clearTicketUserPrompt(interaction) {
+  const prompt = ticketUserPromptMessages.get(getTicketUserPromptKey(interaction));
+  if (!prompt) return;
+
+  const channel = interaction.guild.channels.cache.get(prompt.channelId) ?? await interaction.guild.channels.fetch(prompt.channelId).catch(() => null);
+  const message = channel ? channel.messages.cache.get(prompt.messageId) ?? await channel.messages.fetch(prompt.messageId).catch(() => null) : null;
+  if (message) {
+    await message.edit({ components: [] }).catch(() => null);
+  }
+
+  ticketUserPromptMessages.delete(getTicketUserPromptKey(interaction));
 }
 
 function formatTicketSetupValue(value, fallback = 'Not set') {
@@ -205,18 +223,28 @@ module.exports = {
           return { replyType: 'confirm', content: '', embeds: [embed], components: [buildTicketConfirmationRow('delete')] };
         },
         'ticket-close-confirm': async () => {
+          await interaction.deferUpdate().catch(() => null);
           const ticket = await closeTicket(interaction);
-          return { title: 'Ticket closed', description: `Ticket ${ticket.channelId} has been closed.`, color: 0x57F287, messageOnly: true };
+          await interaction.message.edit({
+            embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('Ticket closed').setDescription(`Ticket ${ticket.channelId} has been closed.`)],
+            components: []
+          }).catch(() => null);
+          return null;
         },
         'ticket-delete-confirm': async () => {
           if (!(await canManageTicketStaff(interaction))) {
             throw new Error('You do not have permission to delete this ticket.');
           }
+          await interaction.deferUpdate().catch(() => null);
           const channel = interaction.channel;
+          await interaction.message.edit({
+            embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('Ticket deleted').setDescription('This ticket channel has been deleted.')],
+            components: []
+          }).catch(() => null);
           if (channel) {
             await channel.delete('Ticket deleted by staff.').catch(() => null);
           }
-          return { title: 'Ticket deleted', description: 'This ticket channel has been deleted.', color: 0xED4245, messageOnly: true };
+          return null;
         },
         'ticket-close-cancel': async () => {
           return { title: 'Close cancelled', description: 'The close action was cancelled.', color: 0x5865F2, messageOnly: true };
@@ -235,15 +263,19 @@ module.exports = {
           if (!(await canManageTicketStaff(interaction))) {
             throw new Error('You do not have permission to claim this ticket.');
           }
+          await interaction.deferReply({ ephemeral: true }).catch(() => null);
           const ticket = await claimTicket(interaction);
-          return { title: 'Ticket claimed', description: `Ticket claimed by <@${ticket.claimedBy}>.`, color: 0x57F287 };
+          await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('Ticket claimed').setDescription(`Ticket claimed by <@${ticket.claimedBy}>.`)] }).catch(() => null);
+          return null;
         },
         'ticket-unclaim': async () => {
           if (!(await canManageTicketStaff(interaction))) {
             throw new Error('You do not have permission to unclaim this ticket.');
           }
+          await interaction.deferReply({ ephemeral: true }).catch(() => null);
           const ticket = await unclaimTicket(interaction);
-          return { title: 'Ticket unclaimed', description: `Ticket ${ticket.channelId} is now unclaimed.`, color: 0x5865F2 };
+          await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle('Ticket unclaimed').setDescription(`Ticket ${ticket.channelId} is now unclaimed.`)] }).catch(() => null);
+          return null;
         },
         'ticket-users': async () => {
           if (!(await canManageTicketStaff(interaction))) {
@@ -253,12 +285,23 @@ module.exports = {
             .setColor(0x5865F2)
             .setTitle('Manage ticket users')
             .setDescription('Choose whether to add or remove a user from this ticket.');
-          return { replyType: 'confirm', content: '', embeds: [embed], components: [buildTicketUserActionRow()] };
+          const message = await interaction.reply({ embeds: [embed], components: [buildTicketUserActionRow()], fetchReply: true }).catch(() => null);
+          if (message) {
+            ticketUserPromptMessages.set(getTicketUserPromptKey(interaction), {
+              channelId: message.channelId,
+              messageId: message.id
+            });
+          }
+          return null;
         },
         'ticket-users-add': async () => {
           if (!(await canManageTicketStaff(interaction))) {
             throw new Error('You do not have permission to manage users for this ticket.');
           }
+          ticketUserPromptMessages.set(getTicketUserPromptKey(interaction), {
+            channelId: interaction.message.channelId,
+            messageId: interaction.message.id
+          });
           await interaction.showModal(buildTicketUserModal('add')).catch(() => null);
           return null;
         },
@@ -266,6 +309,10 @@ module.exports = {
           if (!(await canManageTicketStaff(interaction))) {
             throw new Error('You do not have permission to manage users for this ticket.');
           }
+          ticketUserPromptMessages.set(getTicketUserPromptKey(interaction), {
+            channelId: interaction.message.channelId,
+            messageId: interaction.message.id
+          });
           await interaction.showModal(buildTicketUserModal('remove')).catch(() => null);
           return null;
         },
@@ -316,7 +363,7 @@ module.exports = {
             categoryId: draft.categoryId || null,
             panelChannelId: draft.panelChannelId || null,
             transcriptChannelId: draft.transcriptChannelId || null,
-            ticketOpeningMessage: draft.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.',
+            ticketOpeningMessage: draft.ticketOpeningMessage || '',
             panelType: draft.panelType || 'buttons',
             panelOptions: panelOptions.length ? panelOptions : ['general', 'billing', 'bug', 'other'],
             pingUserIds: pingTargets.filter((id) => /^\d{17,20}$/.test(id)),
@@ -419,7 +466,7 @@ module.exports = {
             panelMessageAbove: readModalField(interaction, 'panel_message_above', '') || '',
             categoryId: readModalField(interaction, 'ticket_category_id', existingDraft.categoryId || '') || existingDraft.categoryId || null,
             transcriptChannelId: readModalField(interaction, 'transcript_channel_id', existingDraft.transcriptChannelId || '') || existingDraft.transcriptChannelId || null,
-            ticketOpeningMessage: readModalField(interaction, 'ticket_opening_message', 'Your ticket has been created. A staff member will respond soon.') || 'Your ticket has been created. A staff member will respond soon.',
+            ticketOpeningMessage: readModalField(interaction, 'ticket_opening_message', '') || '',
             pingTargets: readModalField(interaction, 'ping_targets', '') || '',
           };
 
@@ -489,7 +536,7 @@ module.exports = {
           const userId = match ? match[1] : null;
 
           if (!interaction.deferred && !interaction.replied) {
-            await interaction.deferReply().catch(() => null);
+            await interaction.deferReply({ ephemeral: true }).catch(() => null);
           }
 
           if (!userId) {
@@ -498,10 +545,12 @@ module.exports = {
 
           if (action === 'add') {
             await addUserToTicket(interaction, { id: userId });
+            await clearTicketUserPrompt(interaction);
             return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] });
           }
 
           await removeUserFromTicket(interaction, { id: userId });
+          await clearTicketUserPrompt(interaction);
           return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] });
         }
 

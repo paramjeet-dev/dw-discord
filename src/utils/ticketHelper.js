@@ -305,7 +305,7 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
       ['panel_message_above', 'Panel message above embed', defaults.panelMessageAbove || ''],
       ['ticket_category_id', 'Opening category ID', defaults.categoryId || ''],
       ['transcript_channel_id', 'Transcript channel ID', defaults.transcriptChannelId || ''],
-      ['ticket_opening_message', 'Ticket opening message', defaults.ticketOpeningMessage || 'Your ticket has been created. A staff member will respond soon.'],
+      ['ticket_opening_message', 'Ticket opening message', defaults.ticketOpeningMessage || ''],
       ['ping_targets', 'Ping roles/users (comma-separated IDs)', defaults.pingTargets || '']
     ];
 
@@ -316,7 +316,7 @@ function buildTicketSetupModal(page = 1, defaults = {}) {
             .setCustomId(customId)
             .setLabel(label)
             .setStyle(TextInputStyle.Short)
-            .setRequired(false)
+            .setRequired(customId === 'ticket_opening_message')
             .setValue(value)
         )
       );
@@ -380,7 +380,7 @@ function parseTicketSetupDraft(interaction) {
     categoryId: parseDiscordId(readModalField(interaction, 'ticket_category_id')) || null,
     panelChannelId: parseDiscordId(readModalField(interaction, 'panel_channel_id')) || null,
     transcriptChannelId: parseDiscordId(readModalField(interaction, 'transcript_channel_id')) || null,
-    ticketOpeningMessage: readModalField(interaction, 'ticket_opening_message', 'Your ticket has been created. A staff member will respond soon.') || 'Your ticket has been created. A staff member will respond soon.',
+    ticketOpeningMessage: readModalField(interaction, 'ticket_opening_message', '') || '',
     pingTargets: readModalField(interaction, 'ping_targets', '') || ''
   };
 
@@ -669,6 +669,11 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
 
   const embed = buildTicketEmbed(ticketDoc.toObject(), interaction.guild);
   const row = buildTicketActionRow(ticketDoc.toObject());
+  const openingMessage = String(settings.ticketOpeningMessage || '').trim();
+  const openingEmbed = new EmbedBuilder()
+    .setColor(0x5865F2)
+    .setTitle('Ticket opened')
+    .setDescription(openingMessage || '');
   const mentionTargets = [
     ...(Array.isArray(settings.pingUserIds) ? settings.pingUserIds : []),
     ...(Array.isArray(settings.pingRoleIds) ? settings.pingRoleIds : [])
@@ -683,7 +688,7 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
 
   const initialMessage = await channel.send({
     content: mentions.length ? mentions.join(' ') : undefined,
-    embeds: [embed],
+    embeds: openingMessage ? [openingEmbed, embed] : [embed],
     components: [row]
   });
 
