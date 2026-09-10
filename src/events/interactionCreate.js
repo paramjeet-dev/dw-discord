@@ -247,10 +247,20 @@ module.exports = {
           return null;
         },
         'ticket-close-cancel': async () => {
-          return { title: 'Close cancelled', description: 'The close action was cancelled.', color: 0x5865F2, messageOnly: true };
+          await interaction.deferUpdate().catch(() => null);
+          // remove buttons from the original confirmation message
+          await interaction.message?.edit?.({ components: [] }).catch(() => null);
+          // notify the user that the action was cancelled (ephemeral)
+          await interaction.followUp({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle('Close cancelled').setDescription('The close action was cancelled.')], ephemeral: true }).catch(() => null);
+          return null;
         },
         'ticket-delete-cancel': async () => {
-          return { title: 'Delete cancelled', description: 'The delete action was cancelled.', color: 0x5865F2, messageOnly: true };
+          await interaction.deferUpdate().catch(() => null);
+          // remove buttons from the original confirmation message
+          await interaction.message?.edit?.({ components: [] }).catch(() => null);
+          // notify the user that the action was cancelled (ephemeral)
+          await interaction.followUp({ embeds: [new EmbedBuilder().setColor(0x5865F2).setTitle('Delete cancelled').setDescription('The delete action was cancelled.')], ephemeral: true }).catch(() => null);
+          return null;
         },
         'ticket-reopen': async () => {
           if (!(await canManageTicket(interaction, null))) {
@@ -265,6 +275,8 @@ module.exports = {
           }
           await interaction.deferReply({ ephemeral: true }).catch(() => null);
           const ticket = await claimTicket(interaction);
+          // replace the ephemeral thinking message with a short confirmation
+          await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('Ticket claimed').setDescription(`Ticket ${ticket.channelId} has been claimed.`)] }).catch(() => null);
           return null;
         },
         'ticket-unclaim': async () => {
@@ -539,18 +551,21 @@ module.exports = {
           }
 
           if (!userId) {
-            return interaction.editReply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please provide a valid user ID or mention.')] });
+            await interaction.editReply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'Please provide a valid user ID or mention.')] }).catch(() => null);
+            return null;
           }
 
           if (action === 'add') {
             await addUserToTicket(interaction, { id: userId });
             await clearTicketUserPrompt(interaction);
-            // return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] });
+            await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] }).catch(() => null);
+            return null;
           }
 
           await removeUserFromTicket(interaction, { id: userId });
           await clearTicketUserPrompt(interaction);
-          // return interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] });
+          await interaction.editReply({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] }).catch(() => null);
+          return null;
         }
 
         if (!interaction.deferred && !interaction.replied) {
