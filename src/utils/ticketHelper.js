@@ -886,19 +886,25 @@ async function addUserToTicket(interaction, user, options = {}) {
     throw new Error('This channel is not a valid ticket.');
   }
 
-  if (!user || !user.id) {
+  const userId = user?.id ? String(user.id) : null;
+  if (!userId) {
     throw new Error('Please provide a valid user.');
   }
 
-  if (!ticket.participants.includes(user.id)) {
-    ticket.participants.push(user.id);
+  const member = await interaction.guild.members.fetch(userId).catch(() => null);
+  if (!member) {
+    throw new Error('Please provide a valid user.');
+  }
+
+  if (!ticket.participants.includes(userId)) {
+    ticket.participants.push(userId);
     ticket.updatedAt = new Date();
     await ticket.save();
   }
 
   const channel = interaction.guild.channels.cache.get(targetChannelId) ?? await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
   if (channel) {
-    await channel.permissionOverwrites.edit(user.id, {
+    await channel.permissionOverwrites.edit(member, {
       ViewChannel: true,
       SendMessages: true,
       ReadMessageHistory: true,
@@ -906,7 +912,7 @@ async function addUserToTicket(interaction, user, options = {}) {
       AddReactions: true
     });
 
-    await channel.send({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${user.id}> has been added to this ticket.`)] });
+    await channel.send({ embeds: [new EmbedBuilder().setColor(0x57F287).setTitle('User added').setDescription(`<@${userId}> has been added to this ticket.`)] });
   }
 
   return ticket.toObject();
@@ -919,17 +925,23 @@ async function removeUserFromTicket(interaction, user, options = {}) {
     throw new Error('This channel is not a valid ticket.');
   }
 
-  if (!user || !user.id) {
+  const userId = user?.id ? String(user.id) : null;
+  if (!userId) {
     throw new Error('Please provide a valid user.');
   }
 
-  ticket.participants = (ticket.participants || []).filter((participantId) => participantId !== user.id);
+  const member = await interaction.guild.members.fetch(userId).catch(() => null);
+  if (!member) {
+    throw new Error('Please provide a valid user.');
+  }
+
+  ticket.participants = (ticket.participants || []).filter((participantId) => participantId !== userId);
   ticket.updatedAt = new Date();
   await ticket.save();
 
   const channel = interaction.guild.channels.cache.get(targetChannelId) ?? await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
   if (channel) {
-    await channel.permissionOverwrites.edit(user.id, {
+    await channel.permissionOverwrites.edit(member, {
       ViewChannel: false,
       SendMessages: false,
       ReadMessageHistory: false,
@@ -937,7 +949,7 @@ async function removeUserFromTicket(interaction, user, options = {}) {
       AddReactions: false
     });
 
-    await channel.send({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${user.id}> has been removed from this ticket.`)] });
+    await channel.send({ embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('User removed').setDescription(`<@${userId}> has been removed from this ticket.`)] });
   }
 
   return ticket.toObject();
