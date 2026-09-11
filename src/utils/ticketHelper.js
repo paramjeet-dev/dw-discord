@@ -88,10 +88,10 @@ async function ensureTicketSettings(guildId, overrides = {}) {
 function buildTicketFooter(guild) {
   const serverName = guild?.name || 'Server';
   const iconUrl = guild?.iconURL?.() || null;
-  const localTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  // const localTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
 
   return {
-    text: `${serverName} • ${localTime}`,
+    text: `${serverName} • `,
     iconURL: iconUrl || undefined
   };
 }
@@ -106,8 +106,8 @@ function buildTicketEmbed(ticket, guild) {
   const embed = new EmbedBuilder()
     .setColor(ticket.status === 'closed' ? 0xED4245 : 0x5865F2)
     .setTitle(`Ticket ${channel ? channel.name : 'Details'}`)
-    .setDescription(ticket.reason || 'No reason provided.')
     .setFooter(buildTicketFooter(guild))
+    .setTimestamp()
     .addFields(
       { name: 'Opened by', value: `<@${ticket.openerId}>`, inline: true },
       { name: 'Status', value: status, inline: true },
@@ -814,7 +814,7 @@ async function createTicket({ interaction, reason, type = 'general' }) {
     type: 0,
     parent: category ? category.id : null,
     permissionOverwrites,
-    topic: `Ticket (${ticketType}) created by ${interaction.user.tag} | ${reason || 'No reason provided.'}`
+    topic: `Ticket (${ticketType}) created by ${interaction.user.tag}`
   });
 
   const ticketDoc = await Ticket.create({
