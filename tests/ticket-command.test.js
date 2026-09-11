@@ -13,6 +13,13 @@ for (const name of ['create', 'close', 'reopen', 'claim', 'unclaim', 'add', 'rem
   assert.ok(subcommandNames.includes(name), `Missing subcommand: ${name}`);
 }
 
+const createOptions = payload.options.find((option) => option.name === 'create')?.options?.map((option) => option.name) || [];
+assert.ok(!createOptions.includes('summary'), 'Ticket create should not expose a summary option anymore.');
+
+const panelOptions = payload.options.find((option) => option.name === 'panel')?.options || [];
+const panelSelector = panelOptions.find((option) => option.name === 'panel');
+assert.equal(panelSelector?.autocomplete, true, 'Ticket panel should autocomplete saved panel names.');
+
 const setupOptions = payload.options.find((option) => option.name === 'setup')?.options?.map((option) => option.name) || [];
 assert.deepEqual(setupOptions, [], 'Ticket setup should not expose old slash-command options; it should open a modal instead.');
 
@@ -35,6 +42,7 @@ assert.equal(typeof ticketHelper.buildTicketUserModal, 'function', 'Ticket user 
 assert.equal(typeof ticketHelper.buildTicketConfirmationRow, 'function', 'Ticket confirmation row should exist');
 assert.equal(typeof ticketHelper.buildTicketSetupModal, 'function', 'Ticket setup modal should exist');
 assert.equal(typeof ticketHelper.parseTicketSetupDraft, 'function', 'Ticket setup draft parser should exist');
+assert.equal(typeof ticketHelper.buildTicketPanelChoices, 'function', 'Ticket panel autocomplete helper should exist');
 assert.equal(typeof ticketHelper.getTicketTranscriptLabel, 'function', 'Ticket transcript label helper should exist');
 assert.equal(ticketHelper.getTicketTranscriptLabel({ name: 'billing-help' }), 'billing-help');
 assert.equal(ticketHelper.getTicketTranscriptLabel({ name: 'billing-help', id: '123' }, { channelId: '456' }), 'billing-help');

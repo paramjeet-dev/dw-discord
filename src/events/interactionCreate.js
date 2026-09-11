@@ -17,6 +17,8 @@ const {
   parseTicketSetupDraft,
   ensureTicketSettings,
   getTicketSettings,
+  buildTicketPanelChoices,
+  upsertTicketPanel,
   sendTicketTranscript,
   addUserToTicket,
   removeUserFromTicket,
@@ -182,6 +184,22 @@ function buildTicketSetupReviewButtons() {
 module.exports = {
   name: Events.InteractionCreate,
   async execute(interaction) {
+    if (interaction.isAutocomplete()) {
+      if (interaction.commandName === 'ticket') {
+        const focused = interaction.options.getFocused(true);
+        if (focused?.name === 'panel') {
+          const settings = await getTicketSettings(interaction.guildId);
+          const choices = buildTicketPanelChoices(settings || {});
+          const query = String(focused.value || '').trim().toLowerCase();
+          const filteredChoices = query
+            ? choices.filter((choice) => choice.name.toLowerCase().includes(query) || choice.value.toLowerCase().includes(query))
+            : choices;
+          await interaction.respond(filteredChoices.slice(0, 25)).catch(() => null);
+        }
+      }
+      return;
+    }
+
     if (interaction.isChatInputCommand()) {
       const command = interaction.client.commands.get(interaction.commandName);
       if (!command) {
@@ -419,6 +437,17 @@ module.exports = {
             .map((value) => value.match(/\d{17,20}/)?.[0] || value)
             .filter(Boolean);
 
+          const currentSettings = await getTicketSettings(interaction.guildId) || {};
+          const panelDraft = {
+            panelName: draft.panelName || 'Support tickets',
+            panelHeader: draft.panelHeader || 'Open a support ticket',
+            panelMessage: draft.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.',
+            panelMessageAbove: draft.panelMessageAbove || '',
+            panelType: draft.panelType || 'buttons',
+            panelOptions: panelOptions.length ? panelOptions : ['general', 'billing', 'bug', 'other']
+          };
+          const { panel, panels } = upsertTicketPanel(currentSettings, panelDraft);
+
           const savedSettings = await ensureTicketSettings(interaction.guildId, {
             guildId: interaction.guildId,
             panelName: draft.panelName || 'Support tickets',
@@ -427,7 +456,6 @@ module.exports = {
             panelMessageAbove: draft.panelMessageAbove || '',
             supportRoleId: draft.supportRoleId || null,
             categoryId: draft.categoryId || null,
-            panelChannelId: draft.panelChannelId || null,
             transcriptChannelId: draft.transcriptChannelId || null,
             ticketOpeningMessage: draft.ticketOpeningMessage || '',
             panelType: draft.panelType || 'buttons',
@@ -436,21 +464,22 @@ module.exports = {
             pingRoleIds: [],
             enabled: true,
             allowUserOpenTickets: true,
-            defaultReason: 'Customer support request.'
+            defaultReason: 'No reason provided.',
+            panels
           });
 
-          const panelChannelId = savedSettings?.panelChannelId || draft.panelChannelId;
+          const panelChannelId = draft.panelChannelId || savedSettings?.panelChannelId || null;
           if (!panelChannelId) {
             throw new Error('No panel channel was selected. Please choose a panel channel on page 1.');
           }
 
-          await createPanelMessage(interaction, panelChannelId);
+          await createPanelMessage(interaction, panelChannelId, panel.panelKey);
           ticketSetupDrafts.delete(draftKey);
 
           const successEmbed = new EmbedBuilder()
             .setColor(0x57F287)
             .setTitle('Ticket panel published')
-            .setDescription(`The ticket panel was sent to <#${panelChannelId}>.`)
+            .setDescription(`The ${panel.panelName} panel was sent to <#${panelChannelId}>.`)
             .setThumbnail(interaction.guild?.iconURL?.({ dynamic: true, size: 256 }) || null)
             .setFooter(buildGuildEmbedFooter(interaction.guild, 'Ticket panel'));
 

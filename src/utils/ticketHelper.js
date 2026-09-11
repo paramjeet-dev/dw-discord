@@ -110,8 +110,7 @@ function buildTicketEmbed(ticket, guild) {
       { name: 'Opened by', value: `<@${ticket.openerId}>`, inline: true },
       { name: 'Status', value: status, inline: true },
       { name: 'Claimed by', value: claimedBy, inline: true },
-      { name: 'Participants', value: participants, inline: false },
-      { name: 'Summary', value: ticket.summary || 'No summary provided.', inline: false }
+      { name: 'Participants', value: participants, inline: false }
     );
 
   if (guildIcon) {
@@ -234,6 +233,95 @@ function normalizePanelOptions(options) {
   if (options instanceof Map) return [...options.keys()].filter(Boolean).map(String);
   if (typeof options === 'object') return Object.keys(options).filter(Boolean).map(String);
   return [];
+}
+
+function getPanelKeyFromName(name) {
+  return toSafeChannelName(name || 'support-tickets');
+}
+
+function normalizeTicketPanel(panel = {}, fallbackName = 'Support tickets') {
+  const panelName = String(panel.panelName || panel.name || fallbackName || 'Support tickets').trim() || 'Support tickets';
+  const panelOptions = normalizePanelOptions(panel.panelOptions && panel.panelOptions.length ? panel.panelOptions : ['general', 'billing', 'bug', 'other']);
+
+  return {
+    panelKey: String(panel.panelKey || panel.id || getPanelKeyFromName(panelName)).toLowerCase(),
+    panelName,
+    panelHeader: String(panel.panelHeader || 'Open a support ticket'),
+    panelMessage: String(panel.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.'),
+    panelMessageAbove: String(panel.panelMessageAbove || ''),
+    panelType: panel.panelType === 'select' ? 'select' : 'buttons',
+    panelOptions: panelOptions.length ? panelOptions : ['general', 'billing', 'bug', 'other'],
+    instances: Array.isArray(panel.instances)
+      ? panel.instances
+          .map((instance) => ({
+            channelId: instance?.channelId ? String(instance.channelId) : null,
+            messageId: instance?.messageId ? String(instance.messageId) : null,
+            updatedAt: instance?.updatedAt ? new Date(instance.updatedAt) : new Date()
+          }))
+          .filter((instance) => instance.channelId && instance.messageId)
+      : [],
+    createdAt: panel.createdAt ? new Date(panel.createdAt) : new Date(),
+    updatedAt: panel.updatedAt ? new Date(panel.updatedAt) : new Date()
+  };
+}
+
+function getTicketPanels(settings = {}) {
+  const savedPanels = Array.isArray(settings.panels) ? settings.panels.map((panel) => normalizeTicketPanel(panel)) : [];
+
+  if (savedPanels.length) {
+    return savedPanels;
+  }
+
+  if (settings.panelName || settings.panelHeader || settings.panelMessage || settings.panelMessageAbove) {
+    return [normalizeTicketPanel(settings, settings.panelName || 'Support tickets')];
+  }
+
+  return [];
+}
+
+function findTicketPanel(settings = {}, identifier = '') {
+  const panels = getTicketPanels(settings);
+  if (!panels.length) return null;
+
+  const normalizedIdentifier = String(identifier || '').trim().toLowerCase();
+  if (!normalizedIdentifier) {
+    return panels[0];
+  }
+
+  return panels.find((panel) => panel.panelKey === normalizedIdentifier || panel.panelName.toLowerCase() === normalizedIdentifier)
+    || panels.find((panel) => getPanelKeyFromName(panel.panelName) === normalizedIdentifier)
+    || null;
+}
+
+function buildTicketPanelChoices(settings = {}) {
+  return getTicketPanels(settings).map((panel) => ({
+    name: panel.panelName,
+    value: panel.panelKey
+  }));
+}
+
+function upsertTicketPanel(settings = {}, panelDraft = {}) {
+  const normalizedPanel = normalizeTicketPanel(panelDraft, panelDraft.panelName || settings.panelName || 'Support tickets');
+  const panels = getTicketPanels(settings);
+  const existingPanel = panels.find((panel) => panel.panelKey === normalizedPanel.panelKey || panel.panelName.toLowerCase() === normalizedPanel.panelName.toLowerCase()) || null;
+
+  const nextPanel = {
+    ...(existingPanel || {}),
+    ...normalizedPanel,
+    instances: existingPanel?.instances || normalizedPanel.instances || [],
+    createdAt: existingPanel?.createdAt || normalizedPanel.createdAt,
+    updatedAt: new Date()
+  };
+
+  const nextPanels = [
+    ...panels.filter((panel) => panel.panelKey !== nextPanel.panelKey),
+    nextPanel
+  ];
+
+  return {
+    panel: nextPanel,
+    panels: nextPanels
+  };
 }
 
 function buildTicketPanelRow(settings = {}) {
@@ -435,8 +523,7 @@ function buildTicketFormResponse(ticket, guild) {
     .setDescription(`Your ticket has been created in <#${ticket.channelId}>`)
     .addFields(
       { name: 'Channel', value: `#${channelName}`, inline: true },
-      { name: 'Status', value: 'Open', inline: true },
-      { name: 'Summary', value: ticket.summary || 'No summary provided.', inline: false }
+      { name: 'Status', value: 'Open', inline: true }
     );
 }
 
@@ -542,22 +629,40 @@ async function sendTicketStatusMessage(channel, ticket, guild) {
   });
 }
 
-async function createPanelMessage(interaction, channelId) {
+async function createPanelMessage(interaction, channelId, panelIdentifier = null) {
   if (!interaction || !interaction.guild) throw new Error('This command can only be used inside a server.');
 
-  const targetChannel = channelId
-    ? interaction.guild.channels.cache.get(channelId) ?? await interaction.guild.channels.fetch(channelId).catch(() => null)
+  const settings = await getTicketSettings(interaction.guildId);
+  if (!settings) {
+    throw new Error('No ticket panels have been configured for this server. Run /ticket setup first.');
+  }
+
+  const availablePanels = getTicketPanels(settings);
+  if (!availablePanels.length) {
+    throw new Error('No ticket panels have been configured for this server. Run /ticket setup first.');
+  }
+
+  const targetChannelId = channelId;
+  const targetChannel = targetChannelId
+    ? interaction.guild.channels.cache.get(targetChannelId) ?? await interaction.guild.channels.fetch(targetChannelId).catch(() => null)
     : interaction.channel;
 
   if (!targetChannel || !targetChannel.isTextBased() || targetChannel.isThread()) {
     throw new Error('The panel channel must be a valid text channel.');
   }
 
-  const settings = await getTicketSettings(interaction.guildId) || await ensureTicketSettings(interaction.guildId, { guildId: interaction.guildId });
-  const panelTitle = settings?.panelName || 'Support tickets';
-  const panelHeader = settings?.panelHeader || 'Open a support ticket';
-  const panelMessage = settings?.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.';
-  const panelMessageAbove = (settings?.panelMessageAbove || '').trim();
+  const selectedPanel = panelIdentifier
+    ? findTicketPanel(settings, panelIdentifier)
+    : availablePanels[0];
+
+  if (!selectedPanel) {
+    throw new Error(`The ticket panel "${panelIdentifier}" could not be found.`);
+  }
+
+  const panelTitle = selectedPanel.panelName || 'Support tickets';
+  const panelHeader = selectedPanel.panelHeader || 'Open a support ticket';
+  const panelMessage = selectedPanel.panelMessage || 'Need help? Use the panel below and a staff member will respond soon.';
+  const panelMessageAbove = (selectedPanel.panelMessageAbove || '').trim();
   const guildIcon = interaction.guild.iconURL({ dynamic: true, size: 256 }) || null;
 
   const embed = new EmbedBuilder()
@@ -573,16 +678,14 @@ async function createPanelMessage(interaction, channelId) {
   const panelPayload = {
     content: panelMessageAbove || undefined,
     embeds: [embed],
-    components: buildTicketPanelRow(settings)
+    components: buildTicketPanelRow(selectedPanel)
   };
 
-  const existingPanelMessageId = settings?.panelMessageId;
-  const existingPanelChannelId = settings?.panelChannelId;
-
   let message;
-  if (existingPanelMessageId && existingPanelChannelId === targetChannel.id) {
-    const existingMessage = targetChannel.messages.cache.get(existingPanelMessageId)
-      ?? await targetChannel.messages.fetch(existingPanelMessageId).catch(() => null);
+  const existingInstance = (selectedPanel.instances || []).find((instance) => instance.channelId === targetChannel.id);
+  if (existingInstance?.messageId) {
+    const existingMessage = targetChannel.messages.cache.get(existingInstance.messageId)
+      ?? await targetChannel.messages.fetch(existingInstance.messageId).catch(() => null);
 
     if (existingMessage) {
       message = await existingMessage.edit(panelPayload);
@@ -593,12 +696,45 @@ async function createPanelMessage(interaction, channelId) {
     message = await targetChannel.send(panelPayload);
   }
 
+  const nextPanels = getTicketPanels(settings).map((panel) => {
+    if (panel.panelKey !== selectedPanel.panelKey) {
+      return panel;
+    }
+
+    const nextInstances = [
+      ...(panel.instances || []).filter((instance) => instance.channelId !== targetChannel.id),
+      {
+        channelId: targetChannel.id,
+        messageId: message.id,
+        updatedAt: new Date()
+      }
+    ];
+
+    return {
+      ...panel,
+      panelKey: panel.panelKey,
+      panelName: panelTitle,
+      panelHeader,
+      panelMessage,
+      panelMessageAbove,
+      panelType: selectedPanel.panelType,
+      panelOptions: selectedPanel.panelOptions,
+      instances: nextInstances,
+      updatedAt: new Date()
+    };
+  });
+
   const updatedSettings = await ensureTicketSettings(interaction.guildId, {
     guildId: interaction.guildId,
-    panelChannelId: targetChannel.id,
-    panelMessageId: message.id
+    panels: nextPanels.length ? nextPanels : [
+      {
+        ...selectedPanel,
+        instances: [{ channelId: targetChannel.id, messageId: message.id, updatedAt: new Date() }],
+        updatedAt: new Date()
+      }
+    ]
   });
-  return { message, settings: updatedSettings };
+  return { message, settings: updatedSettings, panel: selectedPanel };
 }
 
 async function setTicketPermissionsForMembers(channel, members, allow = true) {
@@ -621,7 +757,7 @@ async function setTicketPermissionsForMembers(channel, members, allow = true) {
   }
 }
 
-async function createTicket({ interaction, reason, summary, type = 'general' }) {
+async function createTicket({ interaction, reason, type = 'general' }) {
   if (!interaction.inGuild()) {
     throw new Error('This command can only be used inside a server.');
   }
@@ -629,7 +765,7 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
   const settings = await getTicketSettings(interaction.guildId) || await ensureTicketSettings(interaction.guildId, {
     guildId: interaction.guildId,
     ticketPrefix: 'ticket',
-    defaultReason: 'Customer support request.',
+    defaultReason: 'No reason provided.',
     allowUserOpenTickets: true
   });
 
@@ -647,7 +783,7 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
   const supportRoleId = settings.supportRoleId || null;
   const ticketPrefix = settings.ticketPrefix || 'ticket';
   const ticketType = type || 'general';
-  const defaultReason = settings.defaultReason || 'Customer support request.';
+  const defaultReason = settings.defaultReason || 'No reason provided.';
   const resolvedReason = (typeof reason === 'string' && reason.trim()) ? reason : defaultReason;
   const categoryId = resolveTicketCategory(settings, ticketType);
   const ticketName = `${toSafeChannelName(ticketType)}-${ticketPrefix}-${toSafeChannelName(interaction.user.username)}`;
@@ -686,7 +822,6 @@ async function createTicket({ interaction, reason, summary, type = 'general' }) 
     createdBy: interaction.user.id,
     status: 'open',
     reason: resolvedReason,
-    summary: summary || (ticketType === 'general' ? 'General support request.' : `${ticketType} support request.`),
     participants: [interaction.user.id]
   });
 
@@ -729,8 +864,7 @@ async function openTicketButton(interaction, type = 'general') {
   const selectedType = String(type || 'general').toLowerCase();
   const ticket = await createTicket({
     interaction,
-    reason: settings.defaultReason || 'Customer support request.',
-    summary: `${selectedType} support request.`,
+    reason: settings.defaultReason || 'No reason provided.',
     type: selectedType
   });
 
@@ -754,7 +888,6 @@ async function submitTicketForm(interaction) {
   const ticket = await createTicket({
     interaction,
     reason: details,
-    summary: title,
     type
   });
 
@@ -991,8 +1124,6 @@ async function renameTicket(interaction, newName, options = {}) {
 
   const safeName = toSafeChannelName(newName || channel.name).slice(0, 80);
   await channel.setName(safeName);
-
-  ticket.summary = newName;
   ticket.updatedAt = new Date();
   await ticket.save();
 
@@ -1031,6 +1162,12 @@ module.exports = {
   getTicketSettings,
   normalizeTicketCategories,
   resolveTicketCategory,
+  getPanelKeyFromName,
+  normalizeTicketPanel,
+  getTicketPanels,
+  findTicketPanel,
+  buildTicketPanelChoices,
+  upsertTicketPanel,
   getTicketByChannel,
   ensureTicketSettings,
   buildTicketEmbed,

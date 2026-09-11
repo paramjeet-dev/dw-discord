@@ -32,7 +32,6 @@ module.exports = {
         .setName('create')
         .setDescription('Open a new support ticket.')
         .addStringOption((option) => option.setName('reason').setDescription('Why are you opening this ticket?').setRequired(false))
-        .addStringOption((option) => option.setName('summary').setDescription('A short summary for the ticket.').setRequired(false))
         .addStringOption((option) =>
           option
             .setName('type')
@@ -88,6 +87,13 @@ module.exports = {
       subcommand
         .setName('panel')
         .setDescription('Create the support ticket panel in a channel.')
+        .addStringOption((option) =>
+          option
+            .setName('panel')
+            .setDescription('Choose which saved ticket panel to post.')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
         .addChannelOption((option) => option.setName('channel').setDescription('Channel to post the ticket panel in.').setRequired(false))
     )
     .addSubcommand((subcommand) =>
@@ -131,10 +137,9 @@ module.exports = {
       switch (subcommand) {
         case 'create': {
           const reason = interaction.options.getString('reason') || 'No reason provided.';
-          const summary = interaction.options.getString('summary') || 'No summary provided.';
           const type = interaction.options.getString('type') || 'general';
 
-          const result = await createTicket({ interaction, reason, summary, type });
+          const result = await createTicket({ interaction, reason, type });
           return interaction.editReply({ content: `Ticket created in ${result.channel.toString()}` });
         }
 
@@ -144,12 +149,13 @@ module.exports = {
             return interaction.editReply({ embeds: [embed] });
           }
 
+          const panel = interaction.options.getString('panel', true);
           const channel = interaction.options.getChannel('channel') || interaction.channel;
-          const result = await createPanelMessage(interaction, channel.id);
+          const result = await createPanelMessage(interaction, channel.id, panel);
           const embed = new EmbedBuilder()
             .setColor(0x57F287)
             .setTitle('Ticket panel created')
-            .setDescription(`The ticket panel was posted in ${result.message.channel.toString()}.`);
+            .setDescription(`The ${result.panel.panelName} panel was posted in ${result.message.channel.toString()}.`);
           return interaction.editReply({ embeds: [embed] });
         }
 
@@ -254,7 +260,7 @@ module.exports = {
           }
 
           const ticket = await renameTicket(interaction, newName);
-          return interaction.editReply({ embeds: [buildServerEmbed(interaction, 0x5865F2, `Ticket renamed to ${ticket.summary}.`)] });
+          return interaction.editReply({ embeds: [buildServerEmbed(interaction, 0x5865F2, `Ticket renamed to ${newName}.`)] });
         }
 
         case 'setup': {
@@ -278,8 +284,7 @@ module.exports = {
               { name: 'Opened by', value: `<@${info.ticket.openerId}>`, inline: true },
               { name: 'Status', value: info.ticket.status, inline: true },
               { name: 'Claimed by', value: info.ticket.claimedBy ? `<@${info.ticket.claimedBy}>` : 'Unclaimed', inline: true },
-              { name: 'Reason', value: info.ticket.reason || 'No reason provided.', inline: false },
-              { name: 'Summary', value: info.ticket.summary || 'No summary provided.', inline: false }
+              { name: 'Reason', value: info.ticket.reason || 'No reason provided.', inline: false }
             );
 
           return interaction.editReply({ embeds: [embed] });

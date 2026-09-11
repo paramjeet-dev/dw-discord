@@ -46,10 +46,6 @@ const ticketSchema = new mongoose.Schema({
     type: String,
     default: 'No reason provided.'
   },
-  summary: {
-    type: String,
-    default: ''
-  },
   participants: {
     type: [String],
     default: []

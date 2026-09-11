@@ -1,5 +1,67 @@
 const mongoose = require('mongoose');
 
+const ticketPanelInstanceSchema = new mongoose.Schema({
+  channelId: {
+    type: String,
+    required: true
+  },
+  messageId: {
+    type: String,
+    required: true
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  _id: false
+});
+
+const ticketPanelSchema = new mongoose.Schema({
+  panelKey: {
+    type: String,
+    required: true
+  },
+  panelName: {
+    type: String,
+    required: true
+  },
+  panelHeader: {
+    type: String,
+    default: 'Open a support ticket'
+  },
+  panelMessage: {
+    type: String,
+    default: 'Need help? Use the panel below and a staff member will respond soon.'
+  },
+  panelMessageAbove: {
+    type: String,
+    default: ''
+  },
+  panelType: {
+    type: String,
+    default: 'buttons'
+  },
+  panelOptions: {
+    type: [String],
+    default: ['general', 'billing', 'bug', 'other']
+  },
+  instances: {
+    type: [ticketPanelInstanceSchema],
+    default: []
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  _id: false
+});
+
 const ticketSettingsSchema = new mongoose.Schema({
   guildId: {
     type: String,
@@ -35,6 +97,10 @@ const ticketSettingsSchema = new mongoose.Schema({
   panelMessageAbove: {
     type: String,
     default: ''
+  },
+  panels: {
+    type: [ticketPanelSchema],
+    default: []
   },
   ticketOpeningMessage: {
     type: String,
@@ -82,7 +148,7 @@ const ticketSettingsSchema = new mongoose.Schema({
   },
   defaultReason: {
     type: String,
-    default: 'Customer support request.'
+    default: 'No reason provided.'
   },
   updatedAt: {
     type: Date,
