@@ -234,11 +234,27 @@ module.exports = {
           const ticket = await getTicketByChannel(interaction.guildId, interaction.channelId);
           const settings = await getTicketSettings(interaction.guildId);
           const channel = interaction.channel;
+          const transcriptTarget = settings?.transcriptChannelId
+            ? interaction.guild.channels.cache.get(settings.transcriptChannelId) ?? await interaction.guild.channels.fetch(settings.transcriptChannelId).catch(() => null)
+            : channel;
 
-          await sendTicketTranscript(channel, ticket || { channelId: interaction.channelId }, interaction.guild, {
+          const transcript = await sendTicketTranscript(channel, ticket || { channelId: interaction.channelId }, interaction.guild, {
             settings,
+            transcriptChannel: transcriptTarget,
             generatedBy: interaction.user.id
           });
+
+          if (channel) {
+            const statusDescription = transcript
+              ? `The transcript was sent to ${transcriptTarget && transcriptTarget.id !== channel.id ? transcriptTarget.name : 'this channel'}.`
+              : 'The transcript could not be generated for this ticket.';
+            const statusColor = transcript ? 0x5865F2 : 0xED4245;
+            const statusTitle = transcript ? 'Transcript generated' : 'Transcript failed';
+
+            await channel.send({
+              embeds: [new EmbedBuilder().setColor(statusColor).setTitle(statusTitle).setDescription(statusDescription)]
+            }).catch(() => null);
+          }
 
           return {
             title: 'Transcript generated',
@@ -263,10 +279,16 @@ module.exports = {
           const channel = interaction.channel;
           const ticket = await getTicketByChannel(interaction.guildId, interaction.channelId);
           const settings = await getTicketSettings(interaction.guildId);
+          const transcriptTarget = settings?.transcriptChannelId
+            ? interaction.guild.channels.cache.get(settings.transcriptChannelId) ?? await interaction.guild.channels.fetch(settings.transcriptChannelId).catch(() => null)
+            : channel;
+
           await sendTicketTranscript(channel, ticket || { channelId: interaction.channelId }, interaction.guild, {
             settings,
+            transcriptChannel: transcriptTarget,
             generatedBy: interaction.user.id
           });
+
           await interaction.message.edit({
             embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('Ticket deleted').setDescription('This ticket channel has been deleted.')],
             components: []

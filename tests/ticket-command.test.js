@@ -35,6 +35,9 @@ assert.equal(typeof ticketHelper.buildTicketUserModal, 'function', 'Ticket user 
 assert.equal(typeof ticketHelper.buildTicketConfirmationRow, 'function', 'Ticket confirmation row should exist');
 assert.equal(typeof ticketHelper.buildTicketSetupModal, 'function', 'Ticket setup modal should exist');
 assert.equal(typeof ticketHelper.parseTicketSetupDraft, 'function', 'Ticket setup draft parser should exist');
+assert.equal(typeof ticketHelper.getTicketTranscriptLabel, 'function', 'Ticket transcript label helper should exist');
+assert.equal(ticketHelper.getTicketTranscriptLabel({ name: 'billing-help' }), 'billing-help');
+assert.equal(ticketHelper.getTicketTranscriptLabel({ name: 'billing-help', id: '123' }, { channelId: '456' }), 'billing-help');
 
 const normalizedCategories = ticketHelper.normalizeTicketCategories(new Map([
   ['general', 'general-category'],
