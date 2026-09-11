@@ -505,24 +505,41 @@ module.exports = {
           const result = await handler();
           if (!result) return;
 
-          if (!interaction.deferred && !interaction.replied) {
-            await interaction.deferReply({ ephemeral: !!result.ephemeral }).catch(() => null);
-          }
-
+          // prepare payload
+          let payload;
           if (result.replyType === 'confirm') {
-            return interaction.editReply({ embeds: result.embeds, components: result.components || [] });
+            payload = { embeds: result.embeds, components: result.components || [] };
+          } else {
+            const embed = new EmbedBuilder()
+              .setColor(result.color)
+              .setTitle(result.title)
+              .setDescription(result.description);
+            payload = { embeds: [embed] };
           }
 
-          const embed = new EmbedBuilder()
-            .setColor(result.color)
-            .setTitle(result.title)
-            .setDescription(result.description);
+          // try to defer, otherwise fall back to reply
+          if (!interaction.deferred && !interaction.replied) {
+            try {
+              await interaction.deferReply({ ephemeral: !!result.ephemeral });
+              return interaction.editReply(payload).catch(() => null);
+            } catch (err) {
+              return interaction.reply(Object.assign({ ephemeral: !!result.ephemeral }, payload)).catch(() => null);
+            }
+          }
 
-          return interaction.editReply({ embeds: [embed] });
+          return interaction.editReply(payload).catch(() => null);
         } catch (error) {
           console.error('Ticket button error:', error);
           const embed = buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to process this ticket action.');
-          return interaction.editReply({ embeds: [embed] });
+          if (!interaction.deferred && !interaction.replied) {
+            try {
+              await interaction.deferReply({ ephemeral: true });
+              return interaction.editReply({ embeds: [embed] }).catch(() => null);
+            } catch (err) {
+              return interaction.reply({ embeds: [embed], ephemeral: true }).catch(() => null);
+            }
+          }
+          return interaction.editReply({ embeds: [embed] }).catch(() => null);
         }
       }
     }

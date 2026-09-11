@@ -71,16 +71,18 @@ async function getTicketByChannel(guildId, channelId) {
 async function ensureTicketSettings(guildId, overrides = {}) {
   if (!guildId) return null;
 
-  const existing = await TicketSettings.findOne({ guildId });
-  if (existing) {
-    Object.assign(existing, overrides);
-    existing.updatedAt = new Date();
-    await existing.save();
-    return existing.toObject();
-  }
+  const now = new Date();
 
-  const created = await TicketSettings.create({ guildId, ...overrides });
-  return created.toObject();
+  const update = Object.assign({}, overrides, { updatedAt: now, guildId });
+  const setOnInsert = { createdAt: now };
+
+  const updated = await TicketSettings.findOneAndUpdate(
+    { guildId },
+    { $set: update, $setOnInsert: setOnInsert },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+
+  return updated ? updated.toObject() : null;
 }
 
 function buildTicketFooter(guild) {
