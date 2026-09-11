@@ -88,6 +88,15 @@ function buildTicketSetupButtonRow({ nextId, nextLabel, backId, backLabel, saveL
   return row;
 }
 
+async function sendDeferredError(interaction, payload) {
+  if (interaction.deferred || interaction.replied) {
+    return interaction.followUp(payload).catch(() => null);
+  }
+
+  await interaction.deferReply({ ephemeral: true }).catch(() => null);
+  return interaction.editReply(payload).catch(() => null);
+}
+
 async function openTicketPanelInteraction(interaction, type = 'general') {
   if (!interaction.deferred && !interaction.replied) {
     await interaction.deferReply({ ephemeral: true }).catch(() => null);
@@ -185,11 +194,7 @@ module.exports = {
       } catch (error) {
         console.error(error);
         try {
-          if (interaction.deferred || interaction.replied) {
-            await interaction.followUp({ content: 'There was an error while executing this command!', ephemeral: true });
-          } else {
-            await interaction.reply({ content: 'There was an error while executing this command!', ephemeral: true });
-          }
+          await sendDeferredError(interaction, { content: 'There was an error while executing this command!', ephemeral: true });
         } catch (err) {
           console.error('Failed to send error response', err);
         }
@@ -345,7 +350,8 @@ module.exports = {
             .setColor(0x5865F2)
             .setTitle('Manage ticket users')
             .setDescription('Choose whether to add or remove a user from this ticket.');
-          const message = await interaction.reply({ embeds: [embed], components: [buildTicketUserActionRow()], fetchReply: true }).catch(() => null);
+          await interaction.deferUpdate().catch(() => null);
+          const message = await interaction.followUp({ embeds: [embed], components: [buildTicketUserActionRow()] }).catch(() => null);
           if (message) {
             ticketUserPromptMessages.set(getTicketUserPromptKey(interaction), {
               channelId: message.channelId,
@@ -461,7 +467,7 @@ module.exports = {
           return;
         } catch (error) {
           console.error('Ticket panel button error:', error);
-          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket.')], ephemeral: true }).catch(() => null);
+          return sendDeferredError(interaction, { embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket.')], ephemeral: true });
         }
       }
       const handler = ticketHandlers[interaction.customId];
@@ -637,7 +643,7 @@ module.exports = {
           return;
         } catch (error) {
           console.error('Ticket category selection error:', error);
-          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket form.')] });
+          return sendDeferredError(interaction, { embeds: [buildServerEmbed(interaction, 0xED4245, error.message || 'Unable to open this ticket form.')], ephemeral: true });
         }
       }
 

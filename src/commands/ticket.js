@@ -108,14 +108,16 @@ module.exports = {
 
   async execute(interaction) {
     if (!interaction.inGuild()) {
-      return interaction.reply({ content: 'This command can only be used inside a server.', ephemeral: true }).catch(() => null);
+        await interaction.deferReply({ ephemeral: true }).catch(() => null);
+        return interaction.editReply({ content: 'This command can only be used inside a server.' }).catch(() => null);
     }
 
     const subcommand = interaction.options.getSubcommand();
 
     if (subcommand === 'setup') {
       if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return interaction.reply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to configure the ticket system.')], ephemeral: true }).catch(() => null);
+          await interaction.deferReply({ ephemeral: true }).catch(() => null);
+          return interaction.editReply({ embeds: [buildServerEmbed(interaction, 0xED4245, 'You need administrator permissions to configure the ticket system.')] }).catch(() => null);
       }
 
       const settings = await getTicketSettings(interaction.guildId);
@@ -256,7 +258,8 @@ module.exports = {
         }
 
         case 'setup': {
-          return interaction.reply({ embeds: [buildServerEmbed(interaction, 0x5865F2, 'The setup modal is opening.')] }).catch(() => null);
+          const settings = await getTicketSettings(interaction.guildId);
+          return interaction.showModal(buildTicketSetupModal(1, settings || {})).catch(() => null);
         }
 
         case 'info': {
