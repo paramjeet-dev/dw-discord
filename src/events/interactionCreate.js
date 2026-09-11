@@ -5,6 +5,7 @@ const {
   reopenTicket,
   claimTicket,
   unclaimTicket,
+  getTicketByChannel,
   openTicketButton,
   submitTicketForm,
   canManageTicket,
@@ -16,6 +17,7 @@ const {
   parseTicketSetupDraft,
   ensureTicketSettings,
   getTicketSettings,
+  sendTicketTranscript,
   addUserToTicket,
   removeUserFromTicket,
   createPanelMessage
@@ -222,6 +224,28 @@ module.exports = {
             .setDescription('This will permanently delete the ticket channel. This action cannot be undone.');
           return { replyType: 'confirm', content: '', embeds: [embed], components: [buildTicketConfirmationRow('delete')] };
         },
+        'ticket-transcript': async () => {
+          if (!(await canManageTicket(interaction, null))) {
+            throw new Error('You do not have permission to generate a transcript for this ticket.');
+          }
+
+          await interaction.deferReply({ ephemeral: true }).catch(() => null);
+
+          const ticket = await getTicketByChannel(interaction.guildId, interaction.channelId);
+          const settings = await getTicketSettings(interaction.guildId);
+          const channel = interaction.channel;
+
+          await sendTicketTranscript(channel, ticket || { channelId: interaction.channelId }, interaction.guild, {
+            settings,
+            generatedBy: interaction.user.id
+          });
+
+          return {
+            title: 'Transcript generated',
+            description: 'The transcript has been sent to the configured transcript channel or this ticket channel.',
+            color: 0x5865F2
+          };
+        },
         'ticket-close-confirm': async () => {
           await interaction.deferUpdate().catch(() => null);
           const ticket = await closeTicket(interaction);
@@ -237,6 +261,12 @@ module.exports = {
           }
           await interaction.deferUpdate().catch(() => null);
           const channel = interaction.channel;
+          const ticket = await getTicketByChannel(interaction.guildId, interaction.channelId);
+          const settings = await getTicketSettings(interaction.guildId);
+          await sendTicketTranscript(channel, ticket || { channelId: interaction.channelId }, interaction.guild, {
+            settings,
+            generatedBy: interaction.user.id
+          });
           await interaction.message.edit({
             embeds: [new EmbedBuilder().setColor(0xED4245).setTitle('Ticket deleted').setDescription('This ticket channel has been deleted.')],
             components: []
