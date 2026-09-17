@@ -1,4 +1,4 @@
-# Discord Bot Boilerplate
+# Discord Bot for Design Wonderland
 
 This project sets up a Discord bot using discord.js with slash commands and a MongoDB connection via Mongoose.
 
